@@ -2,6 +2,7 @@
 docpack_confluence.egg-info/
 docs/source/**/index.md
 tmp/
+.claude/claude-code-message.md
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
