@@ -594,6 +594,18 @@ files = [
 ]
 
 [[package]]
+name = "diskcache"
+version = "5.6.3"
+description = "Disk Cache -- Disk and file backed persistent cache."
+optional = false
+python-versions = ">=3"
+groups = ["main"]
+files = [
+    {file = "diskcache-5.6.3-py3-none-any.whl", hash = "sha256:5e31b2d5fbad117cc363ebaf6b689474db18a1f6438bc82358b024abd4c2ca19"},
+    {file = "diskcache-5.6.3.tar.gz", hash = "sha256:2c3a3fa2743d8535d832ec61c2054a1641f41775aa7c556758a109941e33e4fc"},
+]
+
+[[package]]
 name = "docfly"
 version = "3.0.0"
 description = "A utility tool to help you build better sphinx documents."
@@ -2892,4 +2904,4 @@ test = ["home-secret-toml", "pytest", "pytest-cov"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4.0"
-content-hash = "9ad41ece12019d8691a6c90084eacb14e6bcfae8fafa2988fe7637e29ec1bdb0"
+content-hash = "2ef76f8c1f7905b466baf2a44975338ff5d797c3e361b54d89e1dddc50b0a64f"
