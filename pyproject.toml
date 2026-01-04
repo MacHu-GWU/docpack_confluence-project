@@ -43,6 +43,7 @@ classifier = [
 # Core Dependencies
 # ------------------------------------------------------------------------------
 dependencies = [
+    "func_args>=1.0.1,<2.0.0",
     "pathpick>=0.1.1,<1.0.0",
     "sanhe-confluence-sdk>=0.1.1,<1.0.0",
     "atlas_doc_parser>=1.0.1,<2.0.0",
@@ -73,6 +74,7 @@ dev = [
 test = [
     "pytest>=8.2.2,<9.0.0", # Testing framework
     "pytest-cov>=6.0.0,<7.0.0", # Coverage reporting
+    "home-secret-toml>=0.2.1,<1.0.0",
 ]
 
 # ------------------------------------------------------------------------------
