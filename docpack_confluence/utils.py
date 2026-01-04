@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from pathlib import Path
+
 
 def extract_id(url_or_id: str) -> str:
     """
@@ -64,3 +66,11 @@ def process_include_exclude(
         else:
             new_exclude.append(id)
     return new_include, new_exclude
+
+
+def safe_write(path: Path, content: str):
+    try:
+        path.write_text(content, encoding="utf-8")
+    except FileNotFoundError:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
