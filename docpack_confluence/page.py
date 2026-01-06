@@ -40,6 +40,7 @@ class Page(GetPagesInSpaceResponseResult):
     Properties like `id`, `title`, `parent_id` provide convenient access to commonly
     used attributes from the raw page data.
     """
+
     # id_path: str = REQ
     # position_path: str = REQ
     # breadcrumb_path: str = REQ
@@ -60,6 +61,35 @@ class Page(GetPagesInSpaceResponseResult):
     @cached_property
     def webui_url(self) -> str:
         return f"{self._formatted_site_url}/wiki{self.links.webui}"
+
+    def get_lineage_of(self, field: str) -> list:
+        lst = [getattr(page, field) for page in self.ancestors]
+        lst.append(getattr(self, field))
+        return lst
+
+    @cached_property
+    def id_lineage(self) -> list[str]:
+        return self.get_lineage_of("id")
+
+    @cached_property
+    def position_lineage(self) -> list[int]:
+        return self.get_lineage_of("position")
+
+    @cached_property
+    def title_lineage(self) -> list[str]:
+        return self.get_lineage_of("title")
+
+    @cached_property
+    def sort_key(self) -> list[int]:
+        return self.position_lineage
+
+
+    # path = f"/{result.id}"
+    # sort_key = f"/{result.position}"
+    # title_chain = f"|| {result.title}"
+    # result.id_path = path
+    # result.position_path = sort_key
+    # result.breadcrumb_path = title_chain
 
     def to_markdown(self, ignore_error: bool = True) -> str:
         node_doc = atlas_doc_parser.NodeDoc.from_dict(
