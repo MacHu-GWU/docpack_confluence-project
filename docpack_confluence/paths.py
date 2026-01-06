@@ -53,6 +53,10 @@ class PathEnum:
     dir_build = dir_project_root / "build"
     dir_dist = dir_project_root / "dist"
 
+    @cached_property
+    def dir_cache(self):
+        return self.dir_home / ".cache" / "docpack_confluence"
+
 
 path_enum = PathEnum()
 """
