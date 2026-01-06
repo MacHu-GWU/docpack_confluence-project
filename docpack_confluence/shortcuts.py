@@ -1,10 +1,18 @@
 # -*- coding: utf-8 -*-
 
+"""
+Shortcut wrappers for sanhe-confluence-sdk API with simplified parameters.
+"""
+
 import typing as T
+import gzip
+
+import orjson
 
 # fmt: off
 from sanhe_confluence_sdk.api import Confluence
 from sanhe_confluence_sdk.api import paginate
+from sanhe_confluence_sdk.methods.model import T_RESPONSE
 from sanhe_confluence_sdk.methods.space.get_space import GetSpaceRequest
 from sanhe_confluence_sdk.methods.space.get_space import GetSpaceRequestPathParams
 from sanhe_confluence_sdk.methods.space.get_space import GetSpaceResponse
@@ -22,6 +30,8 @@ from sanhe_confluence_sdk.methods.descendant.get_page_descendants import GetPage
 from sanhe_confluence_sdk.methods.descendant.get_page_descendants import GetPageDescendantsResponse
 from sanhe_confluence_sdk.methods.descendant.get_page_descendants import GetPageDescendantsResponseResult
 # fmt: on
+
+from diskcache import Cache
 
 
 def get_space_by_id(
@@ -69,8 +79,7 @@ def get_pages_in_space(
     :param space_id: ID of the Confluence space to crawl
     :param limit: Number of pages to fetch
 
-    :returns: List of :class:`ConfluencePage` objects with initialized page_data and site_url,
-        but without hierarchy information (id_path, position_path, breadcrumb_path)
+    :returns: Iterator of page results from the space
     """
     path_params = GetPagesInSpaceRequestPathParams(
         id=space_id,
@@ -94,7 +103,7 @@ def get_pages_in_space(
             yield result
 
 
-def get_pages_descendants(
+def get_descendants_of_page(
     client: Confluence,
     page_id: int,
     limit: int = 9999,
@@ -103,7 +112,7 @@ def get_pages_descendants(
     Crawls and retrieves all descendant pages of a given Confluence page using pagination.
 
     :param client: Authenticated Confluence API client
-    :param page_id: ID of the Confluence page whose descendants
+    :param page_id: ID of the Confluence page whose descendants to fetch
     :param limit: Number of descendant pages to fetch
     """
     path_params = GetPageDescendantsRequestPathParams(
@@ -126,3 +135,131 @@ def get_pages_descendants(
     for response in paginator:
         for result in response.results:
             yield result
+
+
+class HasRawData(T.Protocol):
+    """Protocol for objects that have a raw_data attribute."""
+
+    raw_data: dict[str, T.Any]
+
+
+def serialize_many(objects: list[HasRawData]) -> bytes:
+    """
+    Serialize a list of objects with raw_data to gzip-compressed JSON bytes.
+    """
+    return gzip.compress(orjson.dumps([obj.raw_data for obj in objects]))
+
+
+def deserialize_many(b: bytes, klass: T.Type[T_RESPONSE]) -> list[T_RESPONSE]:
+    """
+    Deserialize gzip-compressed JSON bytes back to a list of objects.
+    """
+    return [klass(_raw_data=data) for data in orjson.loads(gzip.decompress(b))]
+
+
+def get_pages_in_space_with_cache(
+    client: Confluence,
+    space_id: int,
+    cache: Cache,
+    cache_key: str | None = None,
+    expire: int | None = 3600,
+    force_refresh: bool = False,
+    limit: int = 9999,
+) -> list[GetPagesInSpaceResponseResult]:
+    """
+    Retrieves all pages from a Confluence space with disk caching.
+
+    Uses orjson for fast serialization of raw API response data.
+
+    :param client: Authenticated Confluence API client
+    :param space_id: ID of the Confluence space to crawl
+    :param cache: diskcache.Cache instance for storing results
+    :param cache_key: Manual override for cache key (auto-generated if None)
+    :param expire: Cache expiration time in seconds (None for no expiration)
+    :param force_refresh: If True, bypass cache and fetch fresh data
+    :param limit: Maximum number of pages to fetch
+
+    :returns: List of page results from the space
+    """
+    if cache_key is None:
+        cache_key = f"get_pages_in_space@space-{space_id}"
+
+    def fetch():
+        return list(
+            get_pages_in_space(
+                client=client,
+                space_id=space_id,
+                limit=limit,
+            )
+        )
+
+    def store(pages):
+        cache.set(cache_key, serialize_many(pages), expire=expire)
+
+    if force_refresh:
+        pages = fetch()
+        store(pages)
+        return pages
+
+    cached_data = cache.get(cache_key)
+    if cached_data is not None:
+        return deserialize_many(cached_data, GetPagesInSpaceResponseResult)
+
+    # Cache miss - fetch and cache
+    pages = fetch()
+    store(pages)
+    return pages
+
+
+def get_descendants_of_page_with_cache(
+    client: Confluence,
+    page_id: int,
+    cache: Cache,
+    cache_key: str | None = None,
+    expire: int | None = 3600,
+    force_refresh: bool = False,
+    limit: int = 9999,
+) -> list[GetPageDescendantsResponseResult]:
+    """
+    Retrieves all descendant pages of a Confluence page with disk caching.
+
+    Uses orjson for fast serialization of raw API response data.
+
+    :param client: Authenticated Confluence API client
+    :param page_id: ID of the Confluence page whose descendants to fetch
+    :param cache: diskcache.Cache instance for storing results
+    :param cache_key: Manual override for cache key (auto-generated if None)
+    :param expire: Cache expiration time in seconds (None for no expiration)
+    :param force_refresh: If True, bypass cache and fetch fresh data
+    :param limit: Maximum number of descendant pages to fetch
+
+    :returns: List of descendant page results
+    """
+    if cache_key is None:
+        cache_key = f"get_descendants_of_page@{page_id}"
+
+    def fetch():
+        return list(
+            get_descendants_of_page(
+                client=client,
+                page_id=page_id,
+                limit=limit,
+            )
+        )
+
+    def store(pages):
+        cache.set(cache_key, serialize_many(pages), expire=expire)
+
+    if force_refresh:
+        pages = fetch()
+        store(pages)
+        return pages
+
+    cached_data = cache.get(cache_key)
+    if cached_data is not None:
+        return deserialize_many(cached_data, GetPageDescendantsResponseResult)
+
+    # Cache miss - fetch and cache
+    pages = fetch()
+    store(pages)
+    return pages
