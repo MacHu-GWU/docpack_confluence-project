@@ -24,11 +24,22 @@ from sanhe_confluence_sdk.methods.page.get_pages_in_space import GetPagesInSpace
 from sanhe_confluence_sdk.methods.page.get_pages_in_space import GetPagesInSpaceRequestQueryParams
 from sanhe_confluence_sdk.methods.page.get_pages_in_space import GetPagesInSpaceResponse
 from sanhe_confluence_sdk.methods.page.get_pages_in_space import GetPagesInSpaceResponseResult
+from sanhe_confluence_sdk.methods.page.delete_page import DeletePageRequest
+from sanhe_confluence_sdk.methods.page.delete_page import DeletePageRequestPathParams
+from sanhe_confluence_sdk.methods.page.delete_page import DeletePageRequestQueryParams
+from sanhe_confluence_sdk.methods.page.create_page import CreatePageRequest
+from sanhe_confluence_sdk.methods.page.create_page import CreatePageRequestBodyParams
+from sanhe_confluence_sdk.methods.page.create_page import CreatePageResponse
 from sanhe_confluence_sdk.methods.descendant.get_page_descendants import GetPageDescendantsRequest
 from sanhe_confluence_sdk.methods.descendant.get_page_descendants import GetPageDescendantsRequestPathParams
 from sanhe_confluence_sdk.methods.descendant.get_page_descendants import GetPageDescendantsRequestQueryParams
 from sanhe_confluence_sdk.methods.descendant.get_page_descendants import GetPageDescendantsResponse
 from sanhe_confluence_sdk.methods.descendant.get_page_descendants import GetPageDescendantsResponseResult
+from sanhe_confluence_sdk.methods.folder.delete_folder import DeleteFolderRequest
+from sanhe_confluence_sdk.methods.folder.delete_folder import DeleteFolderRequestPathParams
+from sanhe_confluence_sdk.methods.folder.create_folder import CreateFolderRequest
+from sanhe_confluence_sdk.methods.folder.create_folder import CreateFolderRequestBodyParams
+from sanhe_confluence_sdk.methods.folder.create_folder import CreateFolderResponse
 # fmt: on
 
 from diskcache import Cache
@@ -263,3 +274,121 @@ def get_descendants_of_page_with_cache(
     pages = fetch()
     store(pages)
     return pages
+
+
+def delete_pages_and_folders_in_space(
+    client: Confluence,
+    space_id: int,
+    limit: int = 9999,
+) -> None:
+    """
+    Deletes all pages in a Confluence space.
+
+    :param client: Authenticated Confluence API client
+    :param space_id: ID of the Confluence space whose pages to delete
+    """
+    space = get_space_by_id(client=client, space_id=space_id)
+    for entity in get_descendants_of_page(
+        client=client,
+        page_id=int(space.homepageId),
+        limit=limit,
+    ):
+        if entity.type == "page":
+            path_params = DeletePageRequestPathParams(id=int(entity.id))
+            query_params = DeletePageRequestQueryParams(purge=False)
+            request = DeletePageRequest(
+                path_params=path_params,
+                query_params=query_params,
+            )
+            request.sync(client)
+        elif entity.type == "folder":
+            path_params = DeleteFolderRequestPathParams(id=int(entity.id))
+            request = DeleteFolderRequest(path_params=path_params)
+            request.sync(client)
+        else:
+            pass
+
+
+def create_pages_and_folders(
+    client: Confluence,
+    space_id: int,
+    specs: list[str],
+) -> dict[str, str]:
+    """
+    Create pages and folders in a Confluence space based on spec strings.
+
+    Spec format:
+    - "p1" → create page with title "p1" under homepage
+    - "f1" → create folder with title "f1" under homepage
+    - "p2/p3" → create page with title "p3" under "p2"
+    - "p2/f2" → create folder with title "f2" under "p2"
+
+    Naming convention:
+    - Starts with "p" → page
+    - Starts with "f" → folder
+
+    :param client: Authenticated Confluence API client
+    :param space_id: ID of the Confluence space
+    :param specs: List of spec strings (must be sorted by dependency order)
+
+    :returns: Dictionary mapping spec key to created entity ID
+    """
+    space = get_space_by_id(client=client, space_id=space_id)
+    homepage_id = space.homepageId
+
+    # Sort specs to ensure parents are created before children
+    specs = sorted(specs)
+
+    # Maps title to created entity's ID
+    # e.g., "p1" -> "123456", "p3" -> "789012"
+    title_to_id_map: dict[str, str] = {}
+
+    for spec in specs:
+        # Parse spec: "f3/f4/p5" -> parts=["f3", "f4", "p5"]
+        # - title = parts[-1] = "p5"
+        # - parent = parts[-2] = "f4" (or homepage if only one part)
+        parts = spec.split("/")
+        title = parts[-1]
+
+        if len(parts) == 1:
+            # Root level: parent is homepage
+            parent_id = homepage_id
+        else:
+            # Nested: parent is the second-to-last element
+            parent_title = parts[-2]
+            parent_id = title_to_id_map[parent_title]
+
+        # Determine if page or folder based on prefix
+        is_page = title.startswith("p")
+
+        if is_page:
+            # Create page
+            body_params = CreatePageRequestBodyParams(
+                space_id=str(space_id),
+                parent_id=str(parent_id),
+                title=title,
+                body={
+                    "representation": "storage",
+                    "value": "",  # Empty content
+                },
+            )
+            request = CreatePageRequest(body_params=body_params)
+            response = request.sync(client)
+            created_id = response.id
+        else:
+            # Create folder
+            body_params = CreateFolderRequestBodyParams(
+                space_id=str(space_id),
+                parent_id=str(parent_id),
+                title=title,
+            )
+            request = CreateFolderRequest(body_params=body_params)
+            response = request.sync(client)
+            created_id = response.id
+
+        # Store title as key for nested lookups
+        title_to_id_map[title] = created_id
+        print(f"Created {'page' if is_page else 'folder'}: {spec} -> {created_id}")
+
+    return title_to_id_map
+
