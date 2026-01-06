@@ -29,6 +29,18 @@ class MatchMode(str, enum.Enum):
     DESCENDANTS = "descendants"
     RECURSIVE = "recursive"
 
+    def is_self(self) -> bool:  # pragma: no cover
+        """Check if the mode is SELF."""
+        return self == MatchMode.SELF
+
+    def is_descendant(self) -> bool:  # pragma: no cover
+        """Check if the mode is DESCENDANTS."""
+        return self == MatchMode.DESCENDANTS
+
+    def is_recursive(self) -> bool:  # pragma: no cover
+        """Check if the mode is RECURSIVE."""
+        return self == MatchMode.RECURSIVE
+
 
 @dataclasses.dataclass(frozen=True)
 class Pattern:
