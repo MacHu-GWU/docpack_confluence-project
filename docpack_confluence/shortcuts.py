@@ -312,7 +312,7 @@ def delete_pages_and_folders_in_space(
 def create_pages_and_folders(
     client: Confluence,
     space_id: int,
-    specs: list[str],
+    hierarchy_specs: list[str],
 ) -> dict[str, str]:
     """
     Create pages and folders in a Confluence space based on spec strings.
@@ -336,14 +336,11 @@ def create_pages_and_folders(
     space = get_space_by_id(client=client, space_id=space_id)
     homepage_id = space.homepageId
 
-    # Sort specs to ensure parents are created before children
-    specs = sorted(specs)
-
     # Maps title to created entity's ID
     # e.g., "p1" -> "123456", "p3" -> "789012"
     title_to_id_map: dict[str, str] = {}
 
-    for spec in specs:
+    for spec in hierarchy_specs:
         # Parse spec: "f3/f4/p5" -> parts=["f3", "f4", "p5"]
         # - title = parts[-1] = "p5"
         # - parent = parts[-2] = "f4" (or homepage if only one part)
