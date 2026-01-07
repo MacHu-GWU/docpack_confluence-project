@@ -25,7 +25,7 @@ def delete_all_pages_and_folders():
     delete_pages_and_folders_in_space(
         client=client,
         space_id=space_id,
-        purge=True,
+        purge=False,
     )
 
 
@@ -66,7 +66,7 @@ def test_crawl_descendants():
         print(f"{entity.node.title = }, {entity.node.childPosition = }")
 
 
-delete_all_pages_and_folders()
+# delete_all_pages_and_folders()
 # create_deep_hierarchy_pages_and_folders()
 # test_get_descendants()
 # test_crawl_descendants()
