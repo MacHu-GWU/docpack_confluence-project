@@ -5,8 +5,10 @@ Shortcut wrappers for sanhe-confluence-sdk API with simplified parameters.
 """
 
 import typing as T
+import time
 import gzip
 
+import httpx
 import orjson
 
 # fmt: off
@@ -42,6 +44,7 @@ from sanhe_confluence_sdk.methods.folder.create_folder import CreateFolderReques
 from sanhe_confluence_sdk.methods.folder.create_folder import CreateFolderResponse
 # fmt: on
 
+from .constants import GET_PAGE_DESCENDANTS_MAX_DEPTH
 from .type_hint import HasRawData, CacheLike
 
 
@@ -118,6 +121,7 @@ def get_descendants_of_page(
     client: Confluence,
     page_id: int,
     limit: int = 9999,
+    depth: int = GET_PAGE_DESCENDANTS_MAX_DEPTH,
 ) -> T.Iterator[GetPageDescendantsResponseResult]:
     """
     Crawls and retrieves all descendant pages of a given Confluence page using pagination.
@@ -130,7 +134,7 @@ def get_descendants_of_page(
         id=page_id,
     )
     query_params = GetPageDescendantsRequestQueryParams(
-        depth=5,
+        depth=depth,
         limit=250,
     )
     request = GetPageDescendantsRequest(
@@ -273,34 +277,165 @@ def get_descendants_of_page_with_cache(
 def delete_pages_and_folders_in_space(
     client: Confluence,
     space_id: int,
-    limit: int = 9999,
+    purge: bool = False,
+    verbose: bool = True,
 ) -> None:
     """
-    Deletes all pages in a Confluence space.
+    Deletes all pages and folders in a Confluence space.
+
+    Uses :func:`~docpack_confluence.crawler.crawl_space_descendants` to fetch
+    the complete hierarchy (handles depth > 5), then deletes from deepest
+    nodes first (leaves to root).
 
     :param client: Authenticated Confluence API client
     :param space_id: ID of the Confluence space whose pages to delete
+    :param purge: If True, permanently delete (skip trash)
+    :param verbose: If True, print progress information
     """
+    from .crawler import crawl_space_descendants, get_node_path
+
     space = get_space_by_id(client=client, space_id=space_id)
-    for entity in get_descendants_of_page(
+    homepage_id = int(space.homepageId)
+
+    # Crawl complete hierarchy (handles depth > 5)
+    if verbose:
+        print("Crawling space hierarchy...")
+    node_pool = crawl_space_descendants(
         client=client,
-        page_id=int(space.homepageId),
-        limit=limit,
-    ):
-        if entity.type == "page":
-            path_params = DeletePageRequestPathParams(id=int(entity.id))
-            query_params = DeletePageRequestQueryParams(purge=True)
-            request = DeletePageRequest(
-                path_params=path_params,
-                query_params=query_params,
-            )
-            request.sync(client)
-        elif entity.type == "folder":
-            path_params = DeleteFolderRequestPathParams(id=int(entity.id))
-            request = DeleteFolderRequest(path_params=path_params)
-            request.sync(client)
-        else:
-            pass
+        homepage_id=homepage_id,
+        verbose=verbose,
+    )
+
+    if not node_pool:
+        if verbose:
+            print("No entities to delete.")
+        return
+
+    # Compute actual depth for each node and sort by depth descending
+    nodes_with_depth: list[tuple[int, GetPageDescendantsResponseResult]] = []
+    for node_id, node in node_pool.items():
+        path = get_node_path(node_id, node_pool)
+        actual_depth = len(path)
+        nodes_with_depth.append((actual_depth, node))
+
+    # Sort by depth descending (delete deepest first, leaves before parents)
+    nodes_with_depth.sort(key=lambda x: x[0], reverse=True)
+
+    if verbose:
+        print(f"Deleting {len(nodes_with_depth)} entities (deepest first)...")
+
+    for depth, entity in nodes_with_depth:
+        try:
+            if entity.type == "page":
+                if verbose:
+                    print(
+                        f"  Deleting page: {entity.title} (id={entity.id}, depth={depth})"
+                    )
+                path_params = DeletePageRequestPathParams(id=int(entity.id))
+                query_params = DeletePageRequestQueryParams(purge=purge)
+                request = DeletePageRequest(
+                    path_params=path_params,
+                    query_params=query_params,
+                )
+                request.sync(client)
+            elif entity.type == "folder":
+                if verbose:
+                    print(
+                        f"  Deleting folder: {entity.title} (id={entity.id}, depth={depth})"
+                    )
+                path_params = DeleteFolderRequestPathParams(id=int(entity.id))
+                request = DeleteFolderRequest(path_params=path_params)
+                request.sync(client)
+            else:
+                if verbose:
+                    print(f"  Skipping unknown type: {entity.type} ({entity.title})")
+        except httpx.HTTPStatusError as e:
+            status_code = e.response.status_code
+            if status_code == 404:
+                # Already deleted (parent was deleted first)
+                if verbose:
+                    print(f"    -> Already deleted (404)")
+            else:
+                print(f"    -> ERROR {status_code}: {e.response.text}")
+                raise
+
+    if verbose:
+        print(f"Deleted {len(nodes_with_depth)} entities.")
+
+
+# Type alias for requests that have a sync method
+T_REQUEST = T.TypeVar("T_REQUEST")
+T_RESPONSE_TYPE = T.TypeVar("T_RESPONSE_TYPE")
+
+
+def execute_with_retry(
+    request: T_REQUEST,
+    client: Confluence,
+    max_retries: int = 3,
+    initial_delay: float = 1.0,
+    retry_on: set[int] | None = None,
+    verbose: bool = True,
+) -> T_RESPONSE_TYPE:
+    """
+    Execute a request with retry logic for specific HTTP status codes.
+
+    Only retries when the response status code is in ``retry_on`` set.
+    Other errors are raised immediately without retry.
+
+    :param request: Request object with a `sync(client)` method
+    :param client: Confluence API client
+    :param max_retries: Maximum number of retry attempts
+    :param initial_delay: Initial delay in seconds before first retry
+    :param retry_on: Set of HTTP status codes that should trigger a retry.
+        Default is {404} (parent not found, common timing issue).
+    :param verbose: If True, print retry information
+
+    :returns: Response from the successful request
+
+    :raises httpx.HTTPStatusError: If all retries fail or error is not retryable
+
+    **Example**::
+
+        request = CreatePageRequest(body_params=body_params)
+        response = execute_with_retry(request, client, retry_on={404, 503})
+    """
+    if retry_on is None:
+        retry_on = {404}
+
+    delay = initial_delay
+    last_error: httpx.HTTPStatusError | None = None
+
+    for attempt in range(max_retries):
+        try:
+            return request.sync(client)
+        except httpx.HTTPStatusError as e:
+            last_error = e
+            status_code = e.response.status_code
+
+            # Only retry on specific status codes
+            if status_code not in retry_on:
+                if verbose:
+                    print(f"  ERROR: {status_code} (not retryable)")
+                    print(f"  Response: {e.response.text}")
+                raise
+
+            # Check if we have retries left
+            if attempt < max_retries - 1:
+                if verbose:
+                    print(
+                        f"  RETRY ({attempt + 1}/{max_retries}): {status_code}, waiting {delay}s..."
+                    )
+                time.sleep(delay)
+                delay *= 2  # Exponential backoff
+            else:
+                # Final attempt failed
+                if verbose:
+                    print(f"  FAILED after {max_retries} attempts: {status_code}")
+                    print(f"  Response: {e.response.text}")
+                raise
+
+    # Should never reach here, but satisfy type checker
+    raise last_error  # type: ignore
 
 
 def create_pages_and_folders(
@@ -308,7 +443,8 @@ def create_pages_and_folders(
     space_id: int,
     hierarchy_specs: list[str],
     max_retries: int = 3,
-    retry_delay: float = 1.0,
+    initial_delay: float = 1.0,
+    retry_on: set[int] | None = None,
 ) -> dict[str, str]:
     """
     Create pages and folders in a Confluence space based on spec strings.
@@ -327,12 +463,14 @@ def create_pages_and_folders(
     :param space_id: ID of the Confluence space
     :param hierarchy_specs: List of spec strings (must be sorted by dependency order)
     :param max_retries: Maximum number of retry attempts for failed requests
-    :param retry_delay: Delay in seconds between retries
+    :param initial_delay: Initial delay in seconds before first retry
+    :param retry_on: Set of HTTP status codes that should trigger a retry.
+        Default is {404} (parent not found).
 
-    :returns: Dictionary mapping spec key to created entity ID
+    :returns: Dictionary mapping title to created entity ID
     """
-    import time
-    import httpx
+    if retry_on is None:
+        retry_on = {404}
 
     space = get_space_by_id(client=client, space_id=space_id)
     homepage_id = space.homepageId
@@ -359,53 +497,40 @@ def create_pages_and_folders(
 
         # Determine if page or folder based on prefix
         is_page = title.startswith("p")
-        created_id: str = ""
 
-        # Retry loop
-        for attempt in range(max_retries):
-            try:
-                if is_page:
-                    # Create page
-                    print(f"Creating {title} {spec} (page, L{depth}) ...")
-                    body_params = CreatePageRequestBodyParams(
-                        space_id=str(space_id),
-                        parent_id=str(parent_id),
-                        title=title,
-                        body={
-                            "representation": "storage",
-                            "value": "",  # Empty content
-                        },
-                    )
-                    request = CreatePageRequest(body_params=body_params)
-                    response = request.sync(client)
-                    created_id = response.id
-                else:
-                    # Create folder
-                    print(f"Creating {title} {spec} (folder, L{depth}) ...")
-                    body_params = CreateFolderRequestBodyParams(
-                        space_id=str(space_id),
-                        parent_id=str(parent_id),
-                        title=title,
-                    )
-                    request = CreateFolderRequest(body_params=body_params)
-                    response = request.sync(client)
-                    created_id = response.id
-                print(f"  Created ID: {created_id}")
-                break  # Success, exit retry loop
+        if is_page:
+            print(f"Creating {title} (page, L{depth}) ...")
+            body_params = CreatePageRequestBodyParams(
+                space_id=str(space_id),
+                parent_id=str(parent_id),
+                title=title,
+                body={
+                    "representation": "storage",
+                    "value": "",  # Empty content
+                },
+            )
+            request = CreatePageRequest(body_params=body_params)
+        else:
+            print(f"Creating {title} (folder, L{depth}) ...")
+            body_params = CreateFolderRequestBodyParams(
+                space_id=str(space_id),
+                parent_id=str(parent_id),
+                title=title,
+            )
+            request = CreateFolderRequest(body_params=body_params)
 
-            except httpx.HTTPStatusError as e:
-                # Print detailed error info
-                print(f"  ERROR (attempt {attempt + 1}/{max_retries}): {e.response.status_code}")
-                print(f"  Response body: {e.response.text}")
-                if attempt < max_retries - 1:
-                    print(f"  Retrying in {retry_delay}s...")
-                    time.sleep(retry_delay)
-                    retry_delay *= 2  # Exponential backoff
-                else:
-                    raise  # Re-raise on final attempt
+        response = execute_with_retry(
+            request=request,
+            client=client,
+            max_retries=max_retries,
+            initial_delay=initial_delay,
+            retry_on=retry_on,
+            verbose=True,
+        )
+        created_id = response.id
+        print(f"  Created ID: {created_id}")
 
         # Store title as key for nested lookups
         title_to_id_map[title] = created_id
 
     return title_to_id_map
-
