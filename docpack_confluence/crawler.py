@@ -8,7 +8,6 @@ handling the Confluence API's depth=5 limitation by clustering boundary
 nodes and fetching from parent level.
 """
 
-import typing as T
 import dataclasses
 
 # fmt: off
@@ -17,6 +16,7 @@ from sanhe_confluence_sdk.methods.descendant.get_page_descendants import GetPage
 # fmt: on
 
 from .constants import GET_PAGE_DESCENDANTS_MAX_DEPTH, DescendantTypeEnum
+from .type_hint import T_ID_PATH
 from .shortcuts import get_descendants_of_page, get_descendants_of_folder
 
 # Minimum depth required for the Parent Clustering Algorithm to work.
@@ -59,7 +59,7 @@ class Entity:
         return self.lineage[0]
 
     @property
-    def id_path(self) -> list[str]:
+    def id_path(self) -> T_ID_PATH:
         """IDs from root to this entity."""
         return [n.id for n in reversed(self.lineage)]
 

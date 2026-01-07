@@ -51,6 +51,10 @@ from sanhe_confluence_sdk.methods.folder.create_folder import CreateFolderRespon
 
 from .constants import GET_PAGE_DESCENDANTS_MAX_DEPTH
 from .type_hint import HasRawData, CacheLike
+from .selector import Selector
+
+if T.TYPE_CHECKING:  # pragma: no cover
+    from .crawler import Entity
 
 
 def get_space_by_id(
@@ -656,3 +660,128 @@ def create_pages_and_folders(
         title_to_id_map[title] = created_id
 
     return title_to_id_map
+
+
+def filter_pages(
+    entities: list["Entity"],
+    include: list[str] | None = None,
+    exclude: list[str] | None = None,
+) -> list:
+    """
+    Filter entities to get matching pages only.
+
+    This is a pure filtering function with no I/O. Use this when you already
+    have entities (e.g., from cache) and want to apply include/exclude filters.
+
+    :param entities: List of Entity objects from crawl_space_descendants
+    :param include: List of URL patterns to include. None or empty means include all.
+        Supports wildcards: ``/*`` (descendants only), ``/**`` (self and descendants)
+    :param exclude: List of URL patterns to exclude. None or empty means exclude nothing.
+        Supports same wildcards as include.
+
+    :returns: List of Entity objects (pages only) sorted by position_path (depth-first order).
+        Each Entity has: ``node`` (the page), ``id_path``, ``title_path``, ``position_path``
+
+    **Example**::
+
+        from docpack_confluence.crawler import crawl_space_descendants
+
+        # Get entities once (or from cache)
+        entities = crawl_space_descendants(client, homepage_id)
+
+        # Filter multiple times with different patterns
+        docs = filter_pages(entities, include=["...docs/**"])
+        api_ref = filter_pages(entities, include=["...api/**"])
+
+    **Filter priority**: exclude > include. If a page matches both, it is excluded.
+    """
+    # Create selector with include/exclude patterns
+    selector = Selector(
+        include=include or [],
+        exclude=exclude or [],
+    )
+
+    # Filter: pages only + matches selector
+    # entities are already sorted by position_path (depth-first order)
+    result: list["Entity"] = []
+    for entity in entities:
+        # Skip folders, only include pages
+        if entity.node.type != "page":
+            continue
+
+        # Check if page matches include/exclude patterns
+        if selector.should_include(entity.id_path):
+            result.append(entity)
+
+    return result
+
+
+def select_pages(
+    client: Confluence,
+    space_id: int,
+    include: list[str] | None = None,
+    exclude: list[str] | None = None,
+    verbose: bool = False,
+) -> list:
+    """
+    Select pages from a Confluence space based on include/exclude patterns.
+
+    This is a convenience API that combines crawling and filtering. For multiple
+    filter operations on the same space, use :func:`filter_pages` with cached entities.
+
+    :param client: Authenticated Confluence API client
+    :param space_id: ID of the Confluence space
+    :param include: List of URL patterns to include. None or empty means include all.
+        Supports wildcards: ``/*`` (descendants only), ``/**`` (self and descendants)
+    :param exclude: List of URL patterns to exclude. None or empty means exclude nothing.
+        Supports same wildcards as include.
+    :param verbose: If True, print progress information
+
+    :returns: List of Entity objects (pages only) sorted by position_path (depth-first order).
+        Each Entity has: ``node`` (the page), ``id_path``, ``title_path``, ``position_path``
+
+    **Example**::
+
+        # Include all pages under a specific page, exclude a subtree
+        pages = select_pages(
+            client=client,
+            space_id=12345,
+            include=[
+                "https://example.atlassian.net/wiki/spaces/DEMO/pages/111/Topic1/**",
+                "https://example.atlassian.net/wiki/spaces/DEMO/pages/222/Topic2/**",
+            ],
+            exclude=[
+                "https://example.atlassian.net/wiki/spaces/DEMO/pages/333/Draft/*",
+            ],
+        )
+
+        # Get page IDs for fetching content
+        page_ids = [entity.node.id for entity in pages]
+
+    **Filter priority**: exclude > include. If a page matches both, it is excluded.
+
+    .. seealso::
+        :func:`filter_pages` for filtering pre-fetched or cached entities.
+    """
+    from .crawler import crawl_space_descendants
+
+    # Get space homepage
+    space = get_space_by_id(client=client, space_id=space_id)
+    homepage_id = int(space.homepageId)
+
+    # Crawl all descendants (handles depth > 5)
+    if verbose:
+        print("Crawling space hierarchy...")
+    entities = crawl_space_descendants(
+        client=client,
+        homepage_id=homepage_id,
+        verbose=verbose,
+    )
+
+    # Filter using the pure function
+    result = filter_pages(entities, include, exclude)
+
+    if verbose:
+        print(f"Selected {len(result)} pages out of {len(entities)} entities")
+
+    return result

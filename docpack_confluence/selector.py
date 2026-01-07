@@ -12,8 +12,7 @@ import re
 import enum
 import dataclasses
 
-# Type alias: path from root to current node, e.g., ["p1", "f1", "p2"]
-T_ID_PATH = list[str]
+from .type_hint import T_ID_PATH
 
 
 class MatchMode(str, enum.Enum):

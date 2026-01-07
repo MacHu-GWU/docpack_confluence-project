@@ -3,6 +3,9 @@
 import typing as T
 
 
+T_ID_PATH = list[str] # Type alias: path from root to current node, e.g., ["id1", "id2", "id3"]
+
+
 class HasRawData(T.Protocol):
     """Protocol for objects that have a raw_data attribute."""
 
