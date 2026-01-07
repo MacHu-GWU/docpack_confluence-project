@@ -37,6 +37,11 @@ from sanhe_confluence_sdk.methods.descendant.get_page_descendants import GetPage
 from sanhe_confluence_sdk.methods.descendant.get_page_descendants import GetPageDescendantsRequestQueryParams
 from sanhe_confluence_sdk.methods.descendant.get_page_descendants import GetPageDescendantsResponse
 from sanhe_confluence_sdk.methods.descendant.get_page_descendants import GetPageDescendantsResponseResult
+from sanhe_confluence_sdk.methods.descendant.get_folder_descendants import GetFolderDescendantsRequest
+from sanhe_confluence_sdk.methods.descendant.get_folder_descendants import GetFolderDescendantsRequestPathParams
+from sanhe_confluence_sdk.methods.descendant.get_folder_descendants import GetFolderDescendantsRequestQueryParams
+from sanhe_confluence_sdk.methods.descendant.get_folder_descendants import GetFolderDescendantsResponse
+from sanhe_confluence_sdk.methods.descendant.get_folder_descendants import GetFolderDescendantsResponseResult
 from sanhe_confluence_sdk.methods.folder.delete_folder import DeleteFolderRequest
 from sanhe_confluence_sdk.methods.folder.delete_folder import DeleteFolderRequestPathParams
 from sanhe_confluence_sdk.methods.folder.create_folder import CreateFolderRequest
@@ -138,12 +143,52 @@ def get_descendants_of_page(
         limit=250,
     )
     request = GetPageDescendantsRequest(
-        path_params=path_params, query_params=query_params
+        path_params=path_params,
+        query_params=query_params,
     )
     paginator = paginate(
         client=client,
         request=request,
         response_type=GetPageDescendantsResponse,
+        page_size=250,
+        max_items=limit,
+    )
+    for response in paginator:
+        for result in response.results:
+            yield result
+
+
+def get_descendants_of_folder(
+    client: Confluence,
+    folder_id: int,
+    limit: int = 9999,
+    depth: int = GET_PAGE_DESCENDANTS_MAX_DEPTH,
+) -> T.Iterator[GetFolderDescendantsResponseResult]:
+    """
+    Crawls and retrieves all descendant entities of a given Confluence folder using pagination.
+
+    :param client: Authenticated Confluence API client
+    :param folder_id: ID of the Confluence folder whose descendants to fetch
+    :param limit: Maximum number of descendant entities to fetch
+    :param depth: Maximum depth to traverse (API limit is 5)
+
+    :returns: Iterator of descendant results (pages and folders)
+    """
+    path_params = GetFolderDescendantsRequestPathParams(
+        id=folder_id,
+    )
+    query_params = GetFolderDescendantsRequestQueryParams(
+        depth=depth,
+        limit=250,
+    )
+    request = GetFolderDescendantsRequest(
+        path_params=path_params,
+        query_params=query_params,
+    )
+    paginator = paginate(
+        client=client,
+        request=request,
+        response_type=GetFolderDescendantsResponse,
         page_size=250,
         max_items=limit,
     )
@@ -272,6 +317,60 @@ def get_descendants_of_page_with_cache(
     pages = fetch()
     store(pages)
     return pages
+
+
+def get_descendants_of_folder_with_cache(
+    client: Confluence,
+    folder_id: int,
+    cache: CacheLike,
+    cache_key: str | None = None,
+    expire: int | None = 3600,
+    force_refresh: bool = False,
+    limit: int = 9999,
+) -> list[GetFolderDescendantsResponseResult]:
+    """
+    Retrieves all descendant entities of a Confluence folder with disk caching.
+
+    Uses orjson for fast serialization of raw API response data.
+
+    :param client: Authenticated Confluence API client
+    :param folder_id: ID of the Confluence folder whose descendants to fetch
+    :param cache: cache like instance for storing results
+    :param cache_key: Manual override for cache key (auto-generated if None)
+    :param expire: Cache expiration time in seconds (None for no expiration)
+    :param force_refresh: If True, bypass cache and fetch fresh data
+    :param limit: Maximum number of descendant entities to fetch
+
+    :returns: List of descendant results (pages and folders)
+    """
+    if cache_key is None:
+        cache_key = f"get_descendants_of_folder@{folder_id}"
+
+    def fetch():
+        return list(
+            get_descendants_of_folder(
+                client=client,
+                folder_id=folder_id,
+                limit=limit,
+            )
+        )
+
+    def store(descendants):
+        cache.set(cache_key, serialize_many(descendants), expire=expire)
+
+    if force_refresh:
+        descendants = fetch()
+        store(descendants)
+        return descendants
+
+    cached_data = cache.get(cache_key)
+    if cached_data is not None:
+        return deserialize_many(cached_data, GetFolderDescendantsResponseResult)
+
+    # Cache miss - fetch and cache
+    descendants = fetch()
+    store(descendants)
+    return descendants
 
 
 def delete_pages_and_folders_in_space(
