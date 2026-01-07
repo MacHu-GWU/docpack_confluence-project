@@ -108,7 +108,7 @@ def crawl_space_descendants(
         pages = [e for e in entities if e.node.type == "page"]
     """
     # Maps node ID to Entity object (contains node and its lineage)
-    node_pool: dict[str, Entity] = {}
+    entity_pool: dict[str, Entity] = {}
 
     # Track roots to fetch from in each iteration
     # Start with homepage
@@ -131,7 +131,7 @@ def crawl_space_descendants(
                 depth=GET_PAGE_DESCENDANTS_MAX_DEPTH,
             ):
                 # Skip if already fetched (deduplication)
-                if node.id in node_pool:
+                if node.id in entity_pool:
                     continue
 
                 new_nodes.append(node)
@@ -139,13 +139,13 @@ def crawl_space_descendants(
                 # Build lineage: [self, parent, grandparent, ..., root]
                 lineage: list[GetPageDescendantsResponseResult] = [node]
                 current_id = node.parentId
-                while current_id in node_pool:
-                    parent_entity = node_pool[current_id]
+                while current_id in entity_pool:
+                    parent_entity = entity_pool[current_id]
                     lineage.append(parent_entity.node)
                     current_id = parent_entity.node.parentId
 
                 entity = Entity(lineage=lineage)
-                node_pool[node.id] = entity
+                entity_pool[node.id] = entity
 
                 # Check if this is a boundary node (at max depth relative to root)
                 # These nodes might have children we haven't fetched yet
@@ -169,14 +169,14 @@ def crawl_space_descendants(
         for node in boundary_nodes:
             # Walk up to find nearest page ancestor
             current_id = node.parentId
-            while current_id in node_pool:
-                ancestor_entity = node_pool[current_id]
+            while current_id in entity_pool:
+                ancestor_entity = entity_pool[current_id]
                 if ancestor_entity.node.type == "page":
                     page_ancestor_ids.add(int(current_id))
                     break
                 current_id = ancestor_entity.node.parentId
             else:
-                # No page ancestor found in node_pool, must use homepage
+                # No page ancestor found in entity_pool, must use homepage
                 # This happens when all ancestors are folders
                 page_ancestor_ids.add(homepage_id)
 
@@ -189,10 +189,10 @@ def crawl_space_descendants(
         current_roots = list(page_ancestor_ids)
 
     if verbose:
-        print(f"Completed: {len(node_pool)} total nodes in {iteration} iteration(s)")
+        print(f"Completed: {len(entity_pool)} total nodes in {iteration} iteration(s)")
 
     # Sort entities by position_path for depth-first ordering
-    entities = list(node_pool.values())
+    entities = list(entity_pool.values())
     entities.sort(key=lambda e: e.position_path)
 
     return entities
