@@ -14,13 +14,16 @@ Read the specific document when you need detailed information:
 | Topic | Document | When to Read |
 |-------|----------|--------------|
 | **Project Overview** | [01-About-This-Project](docs/source/02-Maintainer-Guide/01-About-This-Project/index.rst) | Understanding project vision, pain points solved, and use cases |
+| **Filter Language** | [02-Filter-Language](docs/source/02-Maintainer-Guide/02-Filter-Language/index.rst) | When working with include/exclude patterns, wildcards (`/*`, `/**`), URL-based matching, page selection logic, or gitignore-style filters |
+| **Data Fetching Strategy** | [03-Data-Fetching-Strategy](docs/source/02-Maintainer-Guide/03-Data-Fetching-Strategy/index.rst) | When working with hierarchy fetching, understanding API depth=5 limitation, Parent Clustering Algorithm, crawler optimization, or caching strategy |
+| **Testing Strategy and Workflow** | [04-Testing-Strategy-and-Workflow](docs/source/02-Maintainer-Guide/04-Testing-Strategy-and-Workflow/index.rst) | When writing tests, creating/deleting test data, understanding hierarchy_specs format, running manual tests, or validating crawler behavior |
 
 ## Quick Reference
 
 - **Understand the project**: Read "Project Overview" first
-- **Learn the architecture**: (TODO: add architecture doc)
-- **Implement new features**: (TODO: add implementation guide)
-- **Write tests**: (TODO: add testing guide)
+- **Learn filter syntax**: Read "Filter Language" for include/exclude patterns
+- **Understand hierarchy fetching**: Read "Data Fetching Strategy" for Parent Clustering Algorithm
+- **Write tests**: Read "Testing Strategy and Workflow" for test data and workflow
 
 ## Core Concepts
 
@@ -32,10 +35,12 @@ Read the specific document when you need detailed information:
 
 ### Key Components
 
-- `ConfluencePage`: Data model for enriched page content
-- `ConfluencePipeline`: Main workflow orchestrator
-- Filter functions: `extract_id`, `is_matching`, `find_matching_pages`
-- Fetcher functions: `fetch_raw_pages_from_space`, `enrich_pages_with_hierarchy_data`
+- `Entity`: Data model for Confluence nodes with lineage (hierarchy path)
+- `crawl_space_descendants`: Parent Clustering Algorithm for fetching complete hierarchies
+- `crawl_space_descendants_with_cache`: Cached version for repeated access
+- `Selector`: Pattern matcher for include/exclude filtering
+- `filter_pages`: Pure filtering function for cached entities
+- `select_pages`: Convenience API combining crawl + filter
 
 ## Related Skills
 
