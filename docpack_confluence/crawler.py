@@ -8,8 +8,11 @@ handling the Confluence API's depth=5 limitation by clustering boundary
 nodes and fetching from parent level.
 """
 
+import typing as T
 import dataclasses
-from pathlib import Path
+import gzip
+
+import orjson
 
 # fmt: off
 from sanhe_confluence_sdk.api import Confluence
@@ -17,7 +20,7 @@ from sanhe_confluence_sdk.methods.descendant.get_page_descendants import GetPage
 # fmt: on
 
 from .constants import GET_PAGE_DESCENDANTS_MAX_DEPTH, DescendantTypeEnum
-from .type_hint import T_ID_PATH
+from .type_hint import T_ID_PATH, CacheLike
 from .shortcuts import get_descendants_of_page, get_descendants_of_folder
 
 # Minimum depth required for the Parent Clustering Algorithm to work.
@@ -366,4 +369,130 @@ def crawl_space_descendants(
     entities = list(entity_pool.values())
     entities.sort(key=lambda e: e.position_path)
 
+    return entities
+
+
+def _serialize_entities(entities: list[Entity]) -> bytes:
+    """
+    Serialize a list of Entity objects to gzip-compressed JSON bytes.
+
+    Uses a deduplicated structure where each node's raw_data is stored exactly
+    once, and lineages reference nodes by ID.
+
+    **Serialized format**::
+
+        {
+            "node_id_1": {
+                "data": {raw_data},
+                "lineage": ["node_id_1", "parent_id", "grandparent_id", ...]
+            },
+            "node_id_2": {
+                "data": {raw_data},
+                "lineage": ["node_id_2", "parent_id", ...]
+            },
+            ...
+        }
+    """
+    data: dict[str, dict] = {}
+    for entity in entities:
+        node_id = entity.node.id
+        data[node_id] = {
+            "data": entity.node.raw_data,
+            "lineage": [n.id for n in entity.lineage],
+        }
+    return gzip.compress(orjson.dumps(data))
+
+
+def _deserialize_entities(b: bytes) -> list[Entity]:
+    """
+    Deserialize gzip-compressed JSON bytes back to a list of Entity objects.
+
+    Reconstructs Entity objects from the deduplicated format, reusing node
+    instances across entities that share ancestors.
+    """
+    data = orjson.loads(gzip.decompress(b))
+
+    # Build node objects once (reused across entities)
+    node_cache: dict[str, GetPageDescendantsResponseResult] = {}
+    for node_id, entry in data.items():
+        node_cache[node_id] = GetPageDescendantsResponseResult(_raw_data=entry["data"])
+
+    # Reconstruct entities
+    entities = []
+    for node_id, entry in data.items():
+        lineage = [node_cache[lid] for lid in entry["lineage"]]
+        entities.append(Entity(lineage=lineage))
+
+    return entities
+
+
+def crawl_space_descendants_with_cache(
+    client: Confluence,
+    homepage_id: int,
+    cache: CacheLike,
+    cache_key: str | None = None,
+    expire: int | None = 3600,
+    force_refresh: bool = False,
+    verbose: bool = False,
+) -> list[Entity]:
+    """
+    Crawl all descendants of a space with disk caching.
+
+    Uses :func:`crawl_space_descendants` for fetching and caches the results
+    using orjson for fast serialization.
+
+    :param client: Authenticated Confluence API client
+    :param homepage_id: ID of the space's homepage
+    :param cache: Cache-like instance for storing results
+    :param cache_key: Manual override for cache key (auto-generated if None)
+    :param expire: Cache expiration time in seconds (None for no expiration)
+    :param force_refresh: If True, bypass cache and fetch fresh data
+    :param verbose: If True, print progress information
+
+    :returns: List of Entity objects sorted by position_path (depth-first order).
+        Each Entity contains the node and its lineage (path to root).
+
+    **Example**::
+
+        import diskcache
+
+        cache = diskcache.Cache("/tmp/confluence_cache")
+        entities = crawl_space_descendants_with_cache(
+            client=client,
+            homepage_id=homepage_id,
+            cache=cache,
+            expire=3600,  # 1 hour
+        )
+
+        # Filter multiple times without re-fetching
+        from docpack_confluence.shortcuts import filter_pages
+
+        docs = filter_pages(entities, include=["...docs/**"])
+        api_ref = filter_pages(entities, include=["...api/**"])
+    """
+    if cache_key is None:
+        cache_key = f"crawl_space_descendants@homepage-{homepage_id}"
+
+    def fetch():
+        return crawl_space_descendants(
+            client=client,
+            homepage_id=homepage_id,
+            verbose=verbose,
+        )
+
+    def store(entities: list[Entity]):
+        cache.set(cache_key, _serialize_entities(entities), expire=expire)
+
+    if force_refresh:
+        entities = fetch()
+        store(entities)
+        return entities
+
+    cached_data = cache.get(cache_key)
+    if cached_data is not None:
+        return _deserialize_entities(cached_data)
+
+    # Cache miss - fetch and cache
+    entities = fetch()
+    store(entities)
     return entities
