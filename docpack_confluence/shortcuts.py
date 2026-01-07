@@ -42,7 +42,7 @@ from sanhe_confluence_sdk.methods.folder.create_folder import CreateFolderReques
 from sanhe_confluence_sdk.methods.folder.create_folder import CreateFolderResponse
 # fmt: on
 
-from diskcache import Cache
+from .type_hint import HasRawData, CacheLike
 
 
 def get_space_by_id(
@@ -148,12 +148,6 @@ def get_descendants_of_page(
             yield result
 
 
-class HasRawData(T.Protocol):
-    """Protocol for objects that have a raw_data attribute."""
-
-    raw_data: dict[str, T.Any]
-
-
 def serialize_many(objects: list[HasRawData]) -> bytes:
     """
     Serialize a list of objects with raw_data to gzip-compressed JSON bytes.
@@ -171,7 +165,7 @@ def deserialize_many(b: bytes, klass: T.Type[T_RESPONSE]) -> list[T_RESPONSE]:
 def get_pages_in_space_with_cache(
     client: Confluence,
     space_id: int,
-    cache: Cache,
+    cache: CacheLike,
     cache_key: str | None = None,
     expire: int | None = 3600,
     force_refresh: bool = False,
@@ -184,7 +178,7 @@ def get_pages_in_space_with_cache(
 
     :param client: Authenticated Confluence API client
     :param space_id: ID of the Confluence space to crawl
-    :param cache: diskcache.Cache instance for storing results
+    :param cache: cache like instance for storing results
     :param cache_key: Manual override for cache key (auto-generated if None)
     :param expire: Cache expiration time in seconds (None for no expiration)
     :param force_refresh: If True, bypass cache and fetch fresh data
@@ -225,7 +219,7 @@ def get_pages_in_space_with_cache(
 def get_descendants_of_page_with_cache(
     client: Confluence,
     page_id: int,
-    cache: Cache,
+    cache: CacheLike,
     cache_key: str | None = None,
     expire: int | None = 3600,
     force_refresh: bool = False,
@@ -238,7 +232,7 @@ def get_descendants_of_page_with_cache(
 
     :param client: Authenticated Confluence API client
     :param page_id: ID of the Confluence page whose descendants to fetch
-    :param cache: diskcache.Cache instance for storing results
+    :param cache: cache like instance for storing results
     :param cache_key: Manual override for cache key (auto-generated if None)
     :param expire: Cache expiration time in seconds (None for no expiration)
     :param force_refresh: If True, bypass cache and fetch fresh data
