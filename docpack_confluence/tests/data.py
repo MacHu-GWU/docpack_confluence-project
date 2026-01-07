@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
 
+space_key = "DPPROJ1"  # Space title = "docpack_confluence Project"
+space_id = 654901269  # Space title = "docpack_confluence Project"
+homepage_id = 654901785  # Space title = "docpack_confluence Project"
+
 # Create a 12-level deep hierarchy with 77 nodes for testing
 # the Parent Clustering Algorithm.
 #
