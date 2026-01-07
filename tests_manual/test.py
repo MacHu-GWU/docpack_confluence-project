@@ -2,8 +2,6 @@ from docpack_confluence.tests.client import client
 from docpack_confluence.tests.data import hierarchy_specs
 from docpack_confluence.one import one
 from docpack_confluence.shortcuts import (
-    get_space_by_key,
-    get_pages_in_space_with_cache,
     get_descendants_of_page_with_cache,
     delete_pages_and_folders_in_space,
     create_pages_and_folders,
@@ -19,7 +17,11 @@ space_key = "DPPROJ1"  # docpack_confluence Project Space
 space_id = 654901269  # docpack_confluence Project Space
 homepage_id = 654901785  # docpack_confluence Project Space homepage
 
-def delete_all():
+
+def delete_all_pages_and_folders():
+    """
+    Delete all pages and folders in the test space.
+    """
     delete_pages_and_folders_in_space(
         client=client,
         space_id=space_id,
@@ -27,19 +29,10 @@ def delete_all():
     )
 
 
-def create_deep_hierarchy():
+def create_deep_hierarchy_pages_and_folders():
     """
     Create a 12-level deep hierarchy with 77 nodes for testing
     the Parent Clustering Algorithm.
-
-    Structure highlights:
-    - Depth-first ordering with sequential numbering
-    - Title format: p01-L1, f04-L4, p77-L12 (includes level info)
-    - L4-L5: 3 clustering parents (f04, f21, p38) each with 5-6 L5 children
-    - L8-L9: 3 clustering parents (f08, f25, p42) each with 4 L9 children
-    - 5 branches reach L12 depth
-
-    Total: 77 nodes (pages + folders)
     """
     create_pages_and_folders(
         client=client,
@@ -47,7 +40,12 @@ def create_deep_hierarchy():
         hierarchy_specs=hierarchy_specs,
     )
 
-def get_descendants():
+
+def test_get_descendants():
+    """
+    Use this function to test if the get_descendants_of_page method returns
+    pages in the depth first order as expected.
+    """
     descendants = get_descendants_of_page_with_cache(
         client=client,
         page_id=homepage_id,
@@ -55,64 +53,24 @@ def get_descendants():
     )
     for desc in descendants:
         print(f"{desc.title = }, {desc.childPosition = }")
-# get_descendants()
+
 
 def test_crawl_descendants():
     """Test the Parent Clustering Algorithm crawler."""
-    from docpack_confluence.crawler import get_node_path
-
     entities = crawl_space_descendants(
         client=client,
         homepage_id=homepage_id,
         verbose=True,
     )
     for entity in entities:
-        print(entity.node.title)
-
-    # Summary
-    # pages = [n for n in node_pool.values() if n.type == "page"]
-    # folders = [n for n in node_pool.values() if n.type == "folder"]
-    # print(f"\nSummary: {len(pages)} pages, {len(folders)} folders, {len(node_pool)} total")
-    #
-    # # Find deepest nodes
-    # max_depth = 0
-    # deepest_nodes = []
-    # for node_id, node in node_pool.items():
-    #     path = get_node_path(node_id, node_pool)
-    #     depth = len(path)
-    #     if depth > max_depth:
-    #         max_depth = depth
-    #         deepest_nodes = [(node, path)]
-    #     elif depth == max_depth:
-    #         deepest_nodes.append((node, path))
-    #
-    # print(f"Max depth: {max_depth}")
-    # print("Deepest nodes:")
-    # for node, path in deepest_nodes[:3]:  # Show first 3
-    #     print(f"  - {node.title}: {' -> '.join(node_pool[p].title for p in path)}")
+        print(f"{entity.node.title = }, {entity.node.childPosition = }")
 
 
-# delete_all()
-# create_deep_hierarchy()
-# get_descendants()
-test_crawl_descendants()
-# force_refresh = True
-# force_refresh = False
-# descendant_results = get_descendants_of_page_with_cache(
-#     client=client,
-#     page_id=home_page_id,
-#     cache=one.cache,
-#     force_refresh=force_refresh,
-# )
-# page_results = get_pages_in_space_with_cache(
-#     client=client,
-#     space_id=space_id,
-#     cache=one.cache,
-#     force_refresh=force_refresh,
-# )
-# for result in descendant_results:
-#     if result.id == "654508052":
-#         rprint(result)
+delete_all_pages_and_folders()
+# create_deep_hierarchy_pages_and_folders()
+# test_get_descendants()
+# test_crawl_descendants()
+
 
 
 # site_url = client.url

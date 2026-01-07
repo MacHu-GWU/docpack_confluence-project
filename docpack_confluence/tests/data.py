@@ -1,5 +1,15 @@
 # -*- coding: utf-8 -*-
 
+# Create a 12-level deep hierarchy with 77 nodes for testing
+# the Parent Clustering Algorithm.
+#
+# Structure highlights:
+# - Depth-first ordering with sequential numbering
+# - Title format: p01-L1, f04-L4, p77-L12 (includes level info)
+# - L4-L5: 3 clustering parents (f04, f21, p38) each with 5-6 L5 children
+# - L8-L9: 3 clustering parents (f08, f25, p42) each with 4 L9 children
+# - 5 branches reach L12 depth
+#
 # Title format: {type}{seq:02d}-L{level}
 # e.g., p01-L1, f04-L4, p77-L12
 hierarchy_specs = [
