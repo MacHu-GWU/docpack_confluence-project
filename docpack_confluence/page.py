@@ -9,15 +9,17 @@ import json
 import dataclasses
 from functools import cached_property
 
-from func_args.api import REQ
 import atlas_doc_parser.api as atlas_doc_parser
-from sanhe_confluence_sdk.methods.page.get_pages_in_space import GetPagesInSpaceResponseResult
+from sanhe_confluence_sdk.methods.page.get_pages_in_space import (
+    GetPagesInSpaceResponseResult,
+)
 
 from .constants import TAB, ConfluencePageFieldEnum
+from .crawler import Entity
 
 
-@dataclasses.dataclass(frozen=True)
-class Page(GetPagesInSpaceResponseResult):
+@dataclasses.dataclass
+class Page:
     """
     A data container for Confluence pages that enriches the API response data with
     hierarchical metadata and navigation properties.
@@ -44,12 +46,9 @@ class Page(GetPagesInSpaceResponseResult):
     # id_path: str = REQ
     # position_path: str = REQ
     # breadcrumb_path: str = REQ
-    site_url: str = dataclasses.field(default=REQ)
-    ancestors: list["Page"] = dataclasses.field(default_factory=list)
-
-    @cached_property
-    def atlas_doc(self) -> dict[str, T.Any]:
-        return json.loads(self.body.atlas_doc_format.value)
+    site_url: str = dataclasses.field()
+    entity: Entity = dataclasses.field()
+    result: GetPagesInSpaceResponseResult = dataclasses.field()
 
     @cached_property
     def _formatted_site_url(self) -> str:
@@ -59,37 +58,12 @@ class Page(GetPagesInSpaceResponseResult):
             return self.site_url
 
     @cached_property
+    def atlas_doc(self) -> dict[str, T.Any]:
+        return json.loads(self.result.body.atlas_doc_format.value)
+
+    @cached_property
     def webui_url(self) -> str:
-        return f"{self._formatted_site_url}/wiki{self.links.webui}"
-
-    def get_lineage_of(self, field: str) -> list:
-        lst = [getattr(page, field) for page in self.ancestors]
-        lst.append(getattr(self, field))
-        return lst
-
-    @cached_property
-    def id_lineage(self) -> list[str]:
-        return self.get_lineage_of("id")
-
-    @cached_property
-    def position_lineage(self) -> list[int]:
-        return self.get_lineage_of("position")
-
-    @cached_property
-    def title_lineage(self) -> list[str]:
-        return self.get_lineage_of("title")
-
-    @cached_property
-    def sort_key(self) -> list[int]:
-        return self.position_lineage
-
-
-    # path = f"/{result.id}"
-    # sort_key = f"/{result.position}"
-    # title_chain = f"|| {result.title}"
-    # result.id_path = path
-    # result.position_path = sort_key
-    # result.breadcrumb_path = title_chain
+        return f"{self._formatted_site_url}/wiki{self.result.links.webui}"
 
     def to_markdown(self, ignore_error: bool = True) -> str:
         node_doc = atlas_doc_parser.NodeDoc.from_dict(
@@ -97,7 +71,7 @@ class Page(GetPagesInSpaceResponseResult):
         )
         md = node_doc.to_markdown(ignore_error=ignore_error)
         lines = [
-            f"# {self.title}",
+            f"# {self.result.title}",
             "",
         ]
         lines.extend(md.splitlines())
@@ -132,7 +106,7 @@ class Page(GetPagesInSpaceResponseResult):
 
         field = ConfluencePageFieldEnum.title.value
         if field in wanted_fields:
-            lines.append(f"{TAB}<{field}>{self.title}</{field}>")
+            lines.append(f"{TAB}<{field}>{self.result.title}</{field}>")
 
         field = ConfluencePageFieldEnum.markdown_content.value
         if field in wanted_fields:
@@ -143,6 +117,20 @@ class Page(GetPagesInSpaceResponseResult):
         lines.append("</document>")
 
         return "\n".join(lines)
+
+    def to_json(
+        self,
+        wanted_fields: set[ConfluencePageFieldEnum] | None = None,
+        to_markdown_ignore_error: bool = True,
+    ):
+        raise NotImplementedError
+
+    def to_yaml(
+        self,
+        wanted_fields: set[ConfluencePageFieldEnum] | None = None,
+        to_markdown_ignore_error: bool = True,
+    ):
+        raise NotImplementedError
 
     # def export_to_file(
     #     self,

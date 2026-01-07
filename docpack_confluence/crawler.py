@@ -9,6 +9,7 @@ nodes and fetching from parent level.
 """
 
 import dataclasses
+from pathlib import Path
 
 # fmt: off
 from sanhe_confluence_sdk.api import Confluence
@@ -39,7 +40,7 @@ assert GET_PAGE_DESCENDANTS_MAX_DEPTH >= MIN_DEPTH, (
 )
 
 
-@dataclasses.dataclass(slots=True)
+@dataclasses.dataclass
 class Entity:
     """
     Represents a Confluence entity with its hierarchical path.
@@ -72,6 +73,27 @@ class Entity:
     def position_path(self) -> list[int]:
         """Child positions from root to this entity."""
         return [n.childPosition for n in reversed(self.lineage)]
+
+    @property
+    def id_breadcrumb_path(self) -> str:
+        """
+        ID breadcrumb path as a string (e.g., "root_id || parent_id || child_id").
+        """
+        return " ~ ".join(self.id_path)
+
+    @property
+    def title_breadcrumb_path(self) -> str:
+        """
+        Title breadcrumb path as a string (e.g., "Root Title || Parent Title || Child Title").
+        """
+        return " ~ ".join(self.title_path)
+
+    @property
+    def sort_key(self) -> list[int]:
+        """
+        Sorting key based on position_path for depth-first ordering.
+        """
+        return self.position_path
 
 
 # ------------------------------------------------------------------------------
