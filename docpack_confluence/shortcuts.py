@@ -384,14 +384,28 @@ def delete_pages_and_folders_in_space(
 
     Uses :func:`~docpack_confluence.crawler.crawl_space_descendants` to fetch
     the complete hierarchy (handles depth > 5), then deletes from deepest
-    nodes first (leaves to root).
+    level first to avoid "parent folder can't be deleted" errors.
 
     :param client: Authenticated Confluence API client
     :param space_id: ID of the Confluence space whose pages to delete
     :param purge: If True, permanently delete (skip trash)
     :param verbose: If True, print progress information
+
+    **Algorithm**::
+
+        Given hierarchy with max depth = 3:
+            L1: [p1, f1]
+            L2: [p2, f2, p3]
+            L3: [p4, f3]
+
+        Delete order:
+        1. Delete all L3 entities: p4, f3
+        2. Delete all L2 entities: p2, f2, p3
+        3. Delete all L1 entities: p1, f1
+
+        This ensures children are always deleted before parents.
     """
-    from .crawler import crawl_space_descendants, get_node_path
+    from .crawler import crawl_space_descendants
 
     space = get_space_by_id(client=client, space_id=space_id)
     homepage_id = int(space.homepageId)
@@ -399,67 +413,76 @@ def delete_pages_and_folders_in_space(
     # Crawl complete hierarchy (handles depth > 5)
     if verbose:
         print("Crawling space hierarchy...")
-    node_pool = crawl_space_descendants(
+    entities = crawl_space_descendants(
         client=client,
         homepage_id=homepage_id,
         verbose=verbose,
     )
 
-    if not node_pool:
+    if not entities:
         if verbose:
             print("No entities to delete.")
         return
 
-    # Compute actual depth for each node and sort by depth descending
-    nodes_with_depth: list[tuple[int, GetPageDescendantsResponseResult]] = []
-    for node_id, node in node_pool.items():
-        path = get_node_path(node_id, node_pool)
-        actual_depth = len(path)
-        nodes_with_depth.append((actual_depth, node))
+    # Group entities by depth (len(lineage) = depth from root)
+    # lineage = [self, parent, grandparent, ...], so len = depth
+    from collections import defaultdict
 
-    # Sort by depth descending (delete deepest first, leaves before parents)
-    nodes_with_depth.sort(key=lambda x: x[0], reverse=True)
+    by_depth: dict[int, list] = defaultdict(list)
+    for entity in entities:
+        depth = len(entity.lineage)
+        by_depth[depth].append(entity)
 
-    if verbose:
-        print(f"Deleting {len(nodes_with_depth)} entities (deepest first)...")
-
-    for depth, entity in nodes_with_depth:
-        try:
-            if entity.type == "page":
-                if verbose:
-                    print(
-                        f"  Deleting page: {entity.title} (id={entity.id}, depth={depth})"
-                    )
-                path_params = DeletePageRequestPathParams(id=int(entity.id))
-                query_params = DeletePageRequestQueryParams(purge=purge)
-                request = DeletePageRequest(
-                    path_params=path_params,
-                    query_params=query_params,
-                )
-                request.sync(client)
-            elif entity.type == "folder":
-                if verbose:
-                    print(
-                        f"  Deleting folder: {entity.title} (id={entity.id}, depth={depth})"
-                    )
-                path_params = DeleteFolderRequestPathParams(id=int(entity.id))
-                request = DeleteFolderRequest(path_params=path_params)
-                request.sync(client)
-            else:
-                if verbose:
-                    print(f"  Skipping unknown type: {entity.type} ({entity.title})")
-        except httpx.HTTPStatusError as e:
-            status_code = e.response.status_code
-            if status_code == 404:
-                # Already deleted (parent was deleted first)
-                if verbose:
-                    print(f"    -> Already deleted (404)")
-            else:
-                print(f"    -> ERROR {status_code}: {e.response.text}")
-                raise
+    # Get all depths sorted descending (deepest first)
+    depths = sorted(by_depth.keys(), reverse=True)
+    max_depth = depths[0] if depths else 0
 
     if verbose:
-        print(f"Deleted {len(nodes_with_depth)} entities.")
+        print(f"Found {len(entities)} entities, max depth = {max_depth}")
+        print(f"Deleting from depth {max_depth} down to 1...")
+
+    deleted_count = 0
+    for depth in depths:
+        entities_at_depth = by_depth[depth]
+        if verbose:
+            print(f"  Depth {depth}: {len(entities_at_depth)} entities")
+
+        for entity in entities_at_depth:
+            node = entity.node
+            try:
+                if node.type == "page":
+                    if verbose:
+                        print(f"    Deleting page: {node.title} (id={node.id})")
+                    path_params = DeletePageRequestPathParams(id=int(node.id))
+                    query_params = DeletePageRequestQueryParams(purge=purge)
+                    request = DeletePageRequest(
+                        path_params=path_params,
+                        query_params=query_params,
+                    )
+                    request.sync(client)
+                elif node.type == "folder":
+                    if verbose:
+                        print(f"    Deleting folder: {node.title} (id={node.id})")
+                    path_params = DeleteFolderRequestPathParams(id=int(node.id))
+                    request = DeleteFolderRequest(path_params=path_params)
+                    request.sync(client)
+                else:
+                    if verbose:
+                        print(f"    Skipping unknown type: {node.type} ({node.title})")
+                    continue
+                deleted_count += 1
+            except httpx.HTTPStatusError as e:
+                status_code = e.response.status_code
+                if status_code == 404:
+                    # Already deleted (cascade from parent deletion)
+                    if verbose:
+                        print(f"      -> Already deleted (404)")
+                else:
+                    print(f"      -> ERROR {status_code}: {e.response.text}")
+                    raise
+
+    if verbose:
+        print(f"Deleted {deleted_count} entities.")
 
 
 # Type alias for requests that have a sync method
