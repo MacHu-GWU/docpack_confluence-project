@@ -289,7 +289,7 @@ def delete_pages_and_folders_in_space(
     ):
         if entity.type == "page":
             path_params = DeletePageRequestPathParams(id=int(entity.id))
-            query_params = DeletePageRequestQueryParams(purge=False)
+            query_params = DeletePageRequestQueryParams(purge=True)
             request = DeletePageRequest(
                 path_params=path_params,
                 query_params=query_params,
@@ -307,6 +307,8 @@ def create_pages_and_folders(
     client: Confluence,
     space_id: int,
     hierarchy_specs: list[str],
+    max_retries: int = 3,
+    retry_delay: float = 1.0,
 ) -> dict[str, str]:
     """
     Create pages and folders in a Confluence space based on spec strings.
@@ -323,10 +325,15 @@ def create_pages_and_folders(
 
     :param client: Authenticated Confluence API client
     :param space_id: ID of the Confluence space
-    :param specs: List of spec strings (must be sorted by dependency order)
+    :param hierarchy_specs: List of spec strings (must be sorted by dependency order)
+    :param max_retries: Maximum number of retry attempts for failed requests
+    :param retry_delay: Delay in seconds between retries
 
     :returns: Dictionary mapping spec key to created entity ID
     """
+    import time
+    import httpx
+
     space = get_space_by_id(client=client, space_id=space_id)
     homepage_id = space.homepageId
 
@@ -340,6 +347,7 @@ def create_pages_and_folders(
         # - parent = parts[-2] = "f4" (or homepage if only one part)
         parts = spec.split("/")
         title = parts[-1]
+        depth = len(parts)
 
         if len(parts) == 1:
             # Root level: parent is homepage
@@ -351,35 +359,53 @@ def create_pages_and_folders(
 
         # Determine if page or folder based on prefix
         is_page = title.startswith("p")
+        created_id: str = ""
 
-        if is_page:
-            # Create page
-            body_params = CreatePageRequestBodyParams(
-                space_id=str(space_id),
-                parent_id=str(parent_id),
-                title=title,
-                body={
-                    "representation": "storage",
-                    "value": "",  # Empty content
-                },
-            )
-            request = CreatePageRequest(body_params=body_params)
-            response = request.sync(client)
-            created_id = response.id
-        else:
-            # Create folder
-            body_params = CreateFolderRequestBodyParams(
-                space_id=str(space_id),
-                parent_id=str(parent_id),
-                title=title,
-            )
-            request = CreateFolderRequest(body_params=body_params)
-            response = request.sync(client)
-            created_id = response.id
+        # Retry loop
+        for attempt in range(max_retries):
+            try:
+                if is_page:
+                    # Create page
+                    print(f"Creating {title} {spec} (page, L{depth}) ...")
+                    body_params = CreatePageRequestBodyParams(
+                        space_id=str(space_id),
+                        parent_id=str(parent_id),
+                        title=title,
+                        body={
+                            "representation": "storage",
+                            "value": "",  # Empty content
+                        },
+                    )
+                    request = CreatePageRequest(body_params=body_params)
+                    response = request.sync(client)
+                    created_id = response.id
+                else:
+                    # Create folder
+                    print(f"Creating {title} {spec} (folder, L{depth}) ...")
+                    body_params = CreateFolderRequestBodyParams(
+                        space_id=str(space_id),
+                        parent_id=str(parent_id),
+                        title=title,
+                    )
+                    request = CreateFolderRequest(body_params=body_params)
+                    response = request.sync(client)
+                    created_id = response.id
+                print(f"  Created ID: {created_id}")
+                break  # Success, exit retry loop
+
+            except httpx.HTTPStatusError as e:
+                # Print detailed error info
+                print(f"  ERROR (attempt {attempt + 1}/{max_retries}): {e.response.status_code}")
+                print(f"  Response body: {e.response.text}")
+                if attempt < max_retries - 1:
+                    print(f"  Retrying in {retry_delay}s...")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                else:
+                    raise  # Re-raise on final attempt
 
         # Store title as key for nested lookups
         title_to_id_map[title] = created_id
-        print(f"Created {'page' if is_page else 'folder'}: {spec} -> {created_id}")
 
     return title_to_id_map
 

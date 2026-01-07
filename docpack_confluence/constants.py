@@ -18,3 +18,14 @@ class ConfluencePageFieldEnum(str, enum.Enum):
     confluence_url = "confluence_url"
     title = "title"
     markdown_content = "markdown_content"
+
+
+GET_PAGE_DESCENDANTS_MAX_DEPTH = 5
+
+
+class DescendantTypeEnum(str, enum.Enum):
+    database = "database"
+    embed = "embed"
+    folder = "folder"
+    page = "page"
+    whiteboard = "whiteboard"
