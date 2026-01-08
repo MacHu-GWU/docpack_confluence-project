@@ -36,8 +36,8 @@ Read the specific document when you need detailed information:
 ### Key Components
 
 - `Entity`: Data model for Confluence nodes with lineage (hierarchy path)
-- `crawl_space_descendants`: Parent Clustering Algorithm for fetching complete hierarchies
-- `crawl_space_descendants_with_cache`: Cached version for repeated access
+- `crawl_descendants`: Parent Clustering Algorithm for fetching complete hierarchies
+- `crawl_descendants_with_cache`: Cached version for repeated access
 - `Selector`: Pattern matcher for include/exclude filtering
 - `filter_pages`: Pure filtering function for cached entities
 - `select_pages`: Convenience API combining crawl + filter
