@@ -386,7 +386,7 @@ def delete_pages_and_folders_in_space(
     """
     Deletes all pages and folders in a Confluence space.
 
-    Uses :func:`~docpack_confluence.crawler.crawl_space_descendants` to fetch
+    Uses :func:`~docpack_confluence.crawler.crawl_descendants` to fetch
     the complete hierarchy (handles depth > 5), then deletes from deepest
     level first to avoid "parent folder can't be deleted" errors.
 
@@ -409,7 +409,8 @@ def delete_pages_and_folders_in_space(
 
         This ensures children are always deleted before parents.
     """
-    from .crawler import crawl_space_descendants
+    from .crawler import crawl_descendants
+    from .constants import DescendantTypeEnum
 
     space = get_space_by_id(client=client, space_id=space_id)
     homepage_id = int(space.homepageId)
@@ -417,9 +418,10 @@ def delete_pages_and_folders_in_space(
     # Crawl complete hierarchy (handles depth > 5)
     if verbose:
         print("Crawling space hierarchy...")
-    entities = crawl_space_descendants(
+    entities = crawl_descendants(
         client=client,
-        homepage_id=homepage_id,
+        root_id=homepage_id,
+        root_type=DescendantTypeEnum.page,
         verbose=verbose,
     )
 
@@ -673,7 +675,7 @@ def filter_pages(
     This is a pure filtering function with no I/O. Use this when you already
     have entities (e.g., from cache) and want to apply include/exclude filters.
 
-    :param entities: List of Entity objects from crawl_space_descendants
+    :param entities: List of Entity objects from crawl_descendants
     :param include: List of URL patterns to include. None or empty means include all.
         Supports wildcards: ``/*`` (descendants only), ``/**`` (self and descendants)
     :param exclude: List of URL patterns to exclude. None or empty means exclude nothing.
@@ -684,10 +686,11 @@ def filter_pages(
 
     **Example**::
 
-        from docpack_confluence.crawler import crawl_space_descendants
+        from docpack_confluence.crawler import crawl_descendants
+        from docpack_confluence.constants import DescendantTypeEnum
 
         # Get entities once (or from cache)
-        entities = crawl_space_descendants(client, homepage_id)
+        entities = crawl_descendants(client, homepage_id, DescendantTypeEnum.page)
 
         # Filter multiple times with different patterns
         docs = filter_pages(entities, include=["...docs/**"])
@@ -718,19 +721,21 @@ def filter_pages(
 
 def select_pages(
     client: Confluence,
-    space_id: int,
+    root_id: int,
+    root_type: "DescendantTypeEnum",
     include: list[str] | None = None,
     exclude: list[str] | None = None,
     verbose: bool = False,
 ) -> list:
     """
-    Select pages from a Confluence space based on include/exclude patterns.
+    Select pages from a Confluence hierarchy based on include/exclude patterns.
 
     This is a convenience API that combines crawling and filtering. For multiple
-    filter operations on the same space, use :func:`filter_pages` with cached entities.
+    filter operations on the same hierarchy, use :func:`filter_pages` with cached entities.
 
     :param client: Authenticated Confluence API client
-    :param space_id: ID of the Confluence space
+    :param root_id: ID of the root node (page or folder) to crawl from
+    :param root_type: Type of the root node (page or folder)
     :param include: List of URL patterns to include. None or empty means include all.
         Supports wildcards: ``/*`` (descendants only), ``/**`` (self and descendants)
     :param exclude: List of URL patterns to exclude. None or empty means exclude nothing.
@@ -742,10 +747,13 @@ def select_pages(
 
     **Example**::
 
+        from docpack_confluence.constants import DescendantTypeEnum
+
         # Include all pages under a specific page, exclude a subtree
         pages = select_pages(
             client=client,
-            space_id=12345,
+            root_id=homepage_id,
+            root_type=DescendantTypeEnum.page,
             include=[
                 "https://example.atlassian.net/wiki/spaces/DEMO/pages/111/Topic1/**",
                 "https://example.atlassian.net/wiki/spaces/DEMO/pages/222/Topic2/**",
@@ -763,18 +771,15 @@ def select_pages(
     .. seealso::
         :func:`filter_pages` for filtering pre-fetched or cached entities.
     """
-    from .crawler import crawl_space_descendants
-
-    # Get space homepage
-    space = get_space_by_id(client=client, space_id=space_id)
-    homepage_id = int(space.homepageId)
+    from .crawler import crawl_descendants
 
     # Crawl all descendants (handles depth > 5)
     if verbose:
-        print("Crawling space hierarchy...")
-    entities = crawl_space_descendants(
+        print("Crawling hierarchy...")
+    entities = crawl_descendants(
         client=client,
-        homepage_id=homepage_id,
+        root_id=root_id,
+        root_type=root_type,
         verbose=verbose,
     )
 

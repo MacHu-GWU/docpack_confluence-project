@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Manual tests for crawl_space_descendants and crawl_space_descendants_with_cache.
+Manual tests for crawl_descendants and crawl_descendants_with_cache.
 
 These tests require real Confluence API access. Run manually, not in CI.
 
@@ -18,11 +18,10 @@ Expected crawler behavior:
 """
 
 from docpack_confluence.crawler import (
-    crawl_space_descendants,
-    crawl_space_descendants_with_cache,
-    _serialize_entities,
-    _deserialize_entities,
+    crawl_descendants,
+    crawl_descendants_with_cache,
 )
+from docpack_confluence.constants import DescendantTypeEnum
 from docpack_confluence.tests.client import client
 from docpack_confluence.tests.data import homepage_id
 from docpack_confluence.one import one
@@ -38,8 +37,8 @@ EXPECTED_FOLDER_COUNT = 35  # Folders only (prefix 'f')
 EXPECTED_MAX_DEPTH = 12  # Deepest level
 
 
-class TestCrawlSpaceDescendants:
-    """Tests for crawl_space_descendants function."""
+class TestCrawlDescendants:
+    """Tests for crawl_descendants function."""
 
     def test_fetch_all_nodes(self):
         """
@@ -52,9 +51,10 @@ class TestCrawlSpaceDescendants:
         print("Test: Fetch all nodes")
         print("=" * 60)
 
-        entities = crawl_space_descendants(
+        entities = crawl_descendants(
             client=client,
-            homepage_id=homepage_id,
+            root_id=homepage_id,
+            root_type=DescendantTypeEnum.page,
             verbose=True,
         )
 
@@ -88,9 +88,10 @@ class TestCrawlSpaceDescendants:
         print("Test: Entities sorted by position_path")
         print("=" * 60)
 
-        entities = crawl_space_descendants(
+        entities = crawl_descendants(
             client=client,
-            homepage_id=homepage_id,
+            root_id=homepage_id,
+            root_type=DescendantTypeEnum.page,
             verbose=False,
         )
 
@@ -117,9 +118,10 @@ class TestCrawlSpaceDescendants:
         print("Test: Entity lineage structure")
         print("=" * 60)
 
-        entities = crawl_space_descendants(
+        entities = crawl_descendants(
             client=client,
-            homepage_id=homepage_id,
+            root_id=homepage_id,
+            root_type=DescendantTypeEnum.page,
             verbose=False,
         )
 
@@ -156,9 +158,10 @@ class TestCrawlSpaceDescendants:
         print("Test: Entity properties")
         print("=" * 60)
 
-        entities = crawl_space_descendants(
+        entities = crawl_descendants(
             client=client,
-            homepage_id=homepage_id,
+            root_id=homepage_id,
+            root_type=DescendantTypeEnum.page,
             verbose=False,
         )
 
@@ -186,8 +189,8 @@ class TestCrawlSpaceDescendants:
         print("PASSED: Entity properties correct")
 
 
-class TestCrawlSpaceDescendantsWithCache:
-    """Tests for crawl_space_descendants_with_cache function."""
+class TestCrawlDescendantsWithCache:
+    """Tests for crawl_descendants_with_cache function."""
 
     def test_cache_miss_fetches_data(self):
         """
@@ -201,9 +204,10 @@ class TestCrawlSpaceDescendantsWithCache:
         cache_key = "test_cache_miss_fetches_data"
         one.cache.delete(cache_key)
 
-        entities = crawl_space_descendants_with_cache(
+        entities = crawl_descendants_with_cache(
             client=client,
-            homepage_id=homepage_id,
+            root_id=homepage_id,
+            root_type=DescendantTypeEnum.page,
             cache=one.cache,
             cache_key=cache_key,
             expire=60,
@@ -233,9 +237,10 @@ class TestCrawlSpaceDescendantsWithCache:
         one.cache.delete(cache_key)
 
         # First call - cache miss
-        entities1 = crawl_space_descendants_with_cache(
+        entities1 = crawl_descendants_with_cache(
             client=client,
-            homepage_id=homepage_id,
+            root_id=homepage_id,
+            root_type=DescendantTypeEnum.page,
             cache=one.cache,
             cache_key=cache_key,
             expire=60,
@@ -245,9 +250,10 @@ class TestCrawlSpaceDescendantsWithCache:
 
         # Second call - cache hit (should be fast, no API call)
         print("Second call (should be instant from cache)...")
-        entities2 = crawl_space_descendants_with_cache(
+        entities2 = crawl_descendants_with_cache(
             client=client,
-            homepage_id=homepage_id,
+            root_id=homepage_id,
+            root_type=DescendantTypeEnum.page,
             cache=one.cache,
             cache_key=cache_key,
             expire=60,
@@ -274,9 +280,10 @@ class TestCrawlSpaceDescendantsWithCache:
         one.cache.delete(cache_key)
 
         # First call - populate cache
-        entities1 = crawl_space_descendants_with_cache(
+        entities1 = crawl_descendants_with_cache(
             client=client,
-            homepage_id=homepage_id,
+            root_id=homepage_id,
+            root_type=DescendantTypeEnum.page,
             cache=one.cache,
             cache_key=cache_key,
             expire=60,
@@ -286,9 +293,10 @@ class TestCrawlSpaceDescendantsWithCache:
 
         # Second call with force_refresh - should fetch again
         print("Force refresh call...")
-        entities2 = crawl_space_descendants_with_cache(
+        entities2 = crawl_descendants_with_cache(
             client=client,
-            homepage_id=homepage_id,
+            root_id=homepage_id,
+            root_type=DescendantTypeEnum.page,
             cache=one.cache,
             cache_key=cache_key,
             expire=60,
@@ -302,88 +310,6 @@ class TestCrawlSpaceDescendantsWithCache:
         # Cleanup
         one.cache.delete(cache_key)
         print("PASSED: Force refresh works correctly")
-
-
-class TestSerialization:
-    """Tests for Entity serialization/deserialization."""
-
-    def test_serialize_deserialize_roundtrip(self):
-        """
-        Test that serialization/deserialization preserves all data.
-        """
-        print("\n" + "=" * 60)
-        print("Test: Serialize/deserialize roundtrip")
-        print("=" * 60)
-
-        # Get entities
-        entities = crawl_space_descendants(
-            client=client,
-            homepage_id=homepage_id,
-            verbose=False,
-        )
-
-        # Serialize
-        serialized = _serialize_entities(entities)
-        print(f"Serialized size: {len(serialized)} bytes")
-
-        # Deserialize
-        deserialized = _deserialize_entities(serialized)
-        print(f"Deserialized count: {len(deserialized)} entities")
-
-        # Validate count
-        assert len(entities) == len(
-            deserialized
-        ), f"Count mismatch: {len(entities)} vs {len(deserialized)}"
-
-        # Validate each entity
-        for orig, restored in zip(entities, deserialized):
-            # Check node data
-            assert orig.node.id == restored.node.id, "Node ID mismatch"
-            assert orig.node.title == restored.node.title, "Node title mismatch"
-            assert orig.node.type == restored.node.type, "Node type mismatch"
-
-            # Check lineage
-            assert len(orig.lineage) == len(restored.lineage), "Lineage length mismatch"
-            for o_node, r_node in zip(orig.lineage, restored.lineage):
-                assert o_node.id == r_node.id, "Lineage node ID mismatch"
-
-        print("PASSED: Roundtrip preserves all data")
-
-    def test_serialization_deduplication(self):
-        """
-        Test that serialization deduplicates shared nodes.
-
-        Each node's raw_data should only appear once in serialized data.
-        """
-        print("\n" + "=" * 60)
-        print("Test: Serialization deduplication")
-        print("=" * 60)
-
-        entities = crawl_space_descendants(
-            client=client,
-            homepage_id=homepage_id,
-            verbose=False,
-        )
-
-        # Count total lineage nodes (with duplication)
-        total_lineage_nodes = sum(len(e.lineage) for e in entities)
-        print(f"Total lineage nodes (with duplication): {total_lineage_nodes}")
-
-        # Count unique nodes
-        unique_nodes = set()
-        for entity in entities:
-            for node in entity.lineage:
-                unique_nodes.add(node.id)
-        print(f"Unique nodes: {len(unique_nodes)}")
-
-        # Deduplication ratio
-        ratio = total_lineage_nodes / len(unique_nodes)
-        print(f"Deduplication ratio: {ratio:.2f}x")
-
-        # With 12 levels, we should see significant deduplication
-        assert ratio > 2.0, "Expected significant deduplication"
-
-        print("PASSED: Serialization uses deduplication")
 
 
 if __name__ == "__main__":

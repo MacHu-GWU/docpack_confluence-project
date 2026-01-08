@@ -100,7 +100,7 @@ class Entity:
 
 
 # ------------------------------------------------------------------------------
-# Helper functions for crawl_space_descendants
+# Helper functions for crawl_descendants
 # ------------------------------------------------------------------------------
 def _build_lineage(
     node: GetPageDescendantsResponseResult,
@@ -284,20 +284,22 @@ def _cluster_by_parents(
 # ------------------------------------------------------------------------------
 # Main crawler function
 # ------------------------------------------------------------------------------
-def crawl_space_descendants(
+def crawl_descendants(
     client: Confluence,
-    homepage_id: int,
+    root_id: int,
+    root_type: DescendantTypeEnum = DescendantTypeEnum.page,
     verbose: bool = False,
 ) -> list[Entity]:
     """
-    Crawl all descendants of a space using Parent Clustering Algorithm.
+    Crawl all descendants of a root node using Parent Clustering Algorithm.
 
     Handles hierarchies deeper than 5 levels by clustering boundary nodes
     (nodes at depth=5) by their parents and fetching from parent level.
     This dramatically reduces API calls compared to naive per-node fetching.
 
     :param client: Authenticated Confluence API client
-    :param homepage_id: ID of the space's homepage
+    :param root_id: ID of the root node (page or folder) to crawl from
+    :param root_type: Type of the root node (page or folder)
     :param verbose: If True, print progress information
 
     :returns: List of Entity objects sorted by position_path (depth-first order).
@@ -305,7 +307,7 @@ def crawl_space_descendants(
 
     **Algorithm**:
 
-    1. Fetch descendants from homepage (depth=5) → get L1-L5
+    1. Fetch descendants from root (depth=5) → get L1-L5
     2. Find boundary nodes (depth=5, meaning they might have children)
     3. Cluster boundary nodes by their direct parents (pages or folders)
     4. Fetch from each unique parent (depth=5)
@@ -315,7 +317,13 @@ def crawl_space_descendants(
 
     **Example**::
 
-        entities = crawl_space_descendants(client, homepage_id)
+        from docpack_confluence.constants import DescendantTypeEnum
+
+        # Crawl from a page (e.g., space homepage)
+        entities = crawl_descendants(client, homepage_id, DescendantTypeEnum.page)
+
+        # Crawl from a folder
+        entities = crawl_descendants(client, folder_id, DescendantTypeEnum.folder)
 
         # Entities are sorted in depth-first order by position_path
         for entity in entities:
@@ -327,16 +335,14 @@ def crawl_space_descendants(
         pages = [e for e in entities if e.node.type == "page"]
     """
     entity_pool: dict[str, Entity] = {}
-    # (id, type) tuples - start with homepage which is always a page
-    current_roots: list[tuple[int, str]] = [
-        (homepage_id, DescendantTypeEnum.page.value)
-    ]
+    # (id, type) tuples - start with provided root
+    current_roots: list[tuple[int, str]] = [(root_id, root_type.value)]
     iteration = 0
 
     while current_roots:
         iteration += 1
 
-        if verbose:
+        if verbose:  # pragma: no cover
             msg = f"Iteration {iteration}: fetching from {len(current_roots)} root(s)"
             print(msg)  # for debug only
 
@@ -345,7 +351,7 @@ def crawl_space_descendants(
             client, current_roots, entity_pool, GET_PAGE_DESCENDANTS_MAX_DEPTH
         )
 
-        if verbose:
+        if verbose:  # pragma: no cover
             msg = f"  - Found {len(new_nodes)} new nodes, {len(boundary_nodes)} at boundary"
             print(msg)  # for debug only
 
@@ -355,13 +361,13 @@ def crawl_space_descendants(
         # Cluster boundary nodes by parents for next iteration
         current_roots = _cluster_by_parents(boundary_nodes, entity_pool)
 
-        if verbose:
+        if verbose:  # pragma: no cover
             msg = (
                 f"  - Clustering into {len(current_roots)} parent(s) for next iteration"
             )
             print(msg)  # for debug only
 
-    if verbose:
+    if verbose:  # pragma: no cover
         msg = f"Completed: {len(entity_pool)} total nodes in {iteration} iteration(s)"
         print(msg)  # for debug only
 
@@ -372,7 +378,7 @@ def crawl_space_descendants(
     return entities
 
 
-def _serialize_entities(entities: list[Entity]) -> bytes:
+def serialize_entities(entities: list[Entity]) -> bytes:
     """
     Serialize a list of Entity objects to gzip-compressed JSON bytes.
 
@@ -403,7 +409,7 @@ def _serialize_entities(entities: list[Entity]) -> bytes:
     return gzip.compress(orjson.dumps(data))
 
 
-def _deserialize_entities(b: bytes) -> list[Entity]:
+def deserialize_entities(b: bytes) -> list[Entity]:
     """
     Deserialize gzip-compressed JSON bytes back to a list of Entity objects.
 
@@ -426,9 +432,10 @@ def _deserialize_entities(b: bytes) -> list[Entity]:
     return entities
 
 
-def crawl_space_descendants_with_cache(
+def crawl_descendants_with_cache(
     client: Confluence,
-    homepage_id: int,
+    root_id: int,
+    root_type: DescendantTypeEnum,
     cache: CacheLike,
     cache_key: str | None = None,
     expire: int | None = 3600,
@@ -436,13 +443,14 @@ def crawl_space_descendants_with_cache(
     verbose: bool = False,
 ) -> list[Entity]:
     """
-    Crawl all descendants of a space with disk caching.
+    Crawl all descendants of a root node with disk caching.
 
-    Uses :func:`crawl_space_descendants` for fetching and caches the results
+    Uses :func:`crawl_descendants` for fetching and caches the results
     using orjson for fast serialization.
 
     :param client: Authenticated Confluence API client
-    :param homepage_id: ID of the space's homepage
+    :param root_id: ID of the root node (page or folder) to crawl from
+    :param root_type: Type of the root node (page or folder)
     :param cache: Cache-like instance for storing results
     :param cache_key: Manual override for cache key (auto-generated if None)
     :param expire: Cache expiration time in seconds (None for no expiration)
@@ -455,11 +463,13 @@ def crawl_space_descendants_with_cache(
     **Example**::
 
         import diskcache
+        from docpack_confluence.constants import DescendantTypeEnum
 
         cache = diskcache.Cache("/tmp/confluence_cache")
-        entities = crawl_space_descendants_with_cache(
+        entities = crawl_descendants_with_cache(
             client=client,
-            homepage_id=homepage_id,
+            root_id=homepage_id,
+            root_type=DescendantTypeEnum.page,
             cache=cache,
             expire=3600,  # 1 hour
         )
@@ -471,17 +481,18 @@ def crawl_space_descendants_with_cache(
         api_ref = filter_pages(entities, include=["...api/**"])
     """
     if cache_key is None:
-        cache_key = f"crawl_space_descendants@homepage-{homepage_id}"
+        cache_key = f"crawl_descendants@{root_type.value}-{root_id}"
 
     def fetch():
-        return crawl_space_descendants(
+        return crawl_descendants(
             client=client,
-            homepage_id=homepage_id,
+            root_id=root_id,
+            root_type=root_type,
             verbose=verbose,
         )
 
     def store(entities: list[Entity]):
-        cache.set(cache_key, _serialize_entities(entities), expire=expire)
+        cache.set(cache_key, serialize_entities(entities), expire=expire)
 
     if force_refresh:
         entities = fetch()
@@ -490,7 +501,7 @@ def crawl_space_descendants_with_cache(
 
     cached_data = cache.get(cache_key)
     if cached_data is not None:
-        return _deserialize_entities(cached_data)
+        return deserialize_entities(cached_data)
 
     # Cache miss - fetch and cache
     entities = fetch()
