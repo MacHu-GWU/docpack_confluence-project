@@ -668,7 +668,7 @@ def filter_pages(
     entities: list["Entity"],
     include: list[str] | None = None,
     exclude: list[str] | None = None,
-) -> list:
+) -> list["Entity"]:
     """
     Filter entities to get matching pages only.
 
@@ -726,7 +726,7 @@ def select_pages(
     include: list[str] | None = None,
     exclude: list[str] | None = None,
     verbose: bool = False,
-) -> list:
+) -> list["Entity"]:
     """
     Select pages from a Confluence hierarchy based on include/exclude patterns.
 
