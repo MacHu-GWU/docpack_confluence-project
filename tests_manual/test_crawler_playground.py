@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 
 from docpack_confluence.crawler import (
-    crawl_space_descendants,
-    crawl_space_descendants_with_cache,
+    crawl_descendants,
+    crawl_descendants_with_cache,
 )
+from docpack_confluence.constants import DescendantTypeEnum
 from docpack_confluence.tests.client import client
 from docpack_confluence.tests.data import homepage_id
 from docpack_confluence.one import one
@@ -12,9 +13,10 @@ from rich import print as rprint
 
 
 def test():
-    descendants = crawl_space_descendants_with_cache(
+    descendants = crawl_descendants_with_cache(
         client=client,
-        homepage_id=homepage_id,
+        root_id=homepage_id,
+        root_type=DescendantTypeEnum.page,
         cache=one.cache,
     )
     rprint(f"{len(descendants) = }")
