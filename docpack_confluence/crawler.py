@@ -8,7 +8,6 @@ handling the Confluence API's depth=5 limitation by clustering boundary
 nodes and fetching from parent level.
 """
 
-import typing as T
 import dataclasses
 import gzip
 

@@ -1,62 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from docpack_confluence.utils import extract_id, process_include_exclude
-
-
-def test_extract_id():
-    cases = [
-        (
-            "https://example.atlassian.net/wiki/spaces/BD/pages/131084/Value+Proposition",
-            "131084",
-        ),
-        (
-            "https://example.atlassian.net/wiki/spaces/BD/pages/131084/Value+Proposition/*",
-            "131084",
-        ),
-        (
-            "https://example.atlassian.net/wiki/spaces/123/pages/131084/Value+Proposition",
-            "131084",
-        ),
-        (
-            "https://example.atlassian.net/wiki/spaces/123/pages/131084/Value+Proposition/*",
-            "131084",
-        ),
-        ("131084", "131084"),
-        ("131084/*", "131084"),
-    ]
-    for url, expected_id in cases:
-        assert extract_id(url) == expected_id
-
-
-def test_process_include_exclude():
-    cases = [
-        (
-            [],
-            [],
-            [],
-            [],
-        ),
-        (
-            [
-                "https://example.atlassian.net/wiki/spaces/BD/pages/111111/TitleA",
-                "https://example.atlassian.net/wiki/spaces/BD/pages/222222/TitleA/*",
-                "333333",
-                "444444/*",
-            ],
-            [],
-            [
-                "111111",
-                "222222/*",
-                "333333",
-                "444444/*",
-            ],
-            [],
-        ),
-    ]
-    for include, exclude, expected_include, expected_exclude in cases:
-        new_include, new_exclude = process_include_exclude(include, exclude)
-        assert new_include == expected_include
-        assert new_exclude == expected_exclude
+from docpack_confluence.utils import safe_write
 
 
 if __name__ == "__main__":

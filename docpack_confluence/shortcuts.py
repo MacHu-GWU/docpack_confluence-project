@@ -96,13 +96,16 @@ def get_space_by_key(
 
 
 def get_pages_by_ids(
-    client: Confluence, ids: list[int], body_format: str = "atlas_doc_format"
+    client: Confluence,
+    ids: list[int],
+    body_format: str = "atlas_doc_format",
 ) -> list[GetPagesResponseResult]:
     """
     Fetches multiple Confluence pages by their IDs in batches.
 
     :param client: Authenticated Confluence API client
     :param ids: List of Confluence page IDs to fetch
+    :param body_format: Format of the page body content
 
     :returns: List of page results
     """
