@@ -1,27 +1,12 @@
 # -*- coding: utf-8 -*-
 
 import typing as T
-import enum
-import dataclasses
+import shutil
 from pathlib import Path
-from functools import cached_property
 
 from .constants import BreadCrumbTypeEnum, ConfluencePageFieldEnum
 from .utils import safe_write
 from .page import Page
-
-
-@dataclasses.dataclass
-class Structure:
-    dir_out: Path
-
-    @cached_property
-    def dir_pages(self) -> Path:
-        return self.dir_out / "pages"
-
-    @cached_property
-    def path_all_in_one(self) -> Path:
-        return self.dir_out / "all_in_one.txt"
 
 
 def export(
@@ -31,8 +16,10 @@ def export(
     wanted_fields: set[ConfluencePageFieldEnum] | None = None,
     to_markdown_ignore_error: bool = True,
     encoding: str = "utf-8",
+    remove_dir_out_if_exists: bool = False,
 ):
-    structure = Structure(dir_out=dir_out)
+    if remove_dir_out_if_exists:
+        shutil.rmtree(dir_out, ignore_errors=True)
     lines = list()
     for page in pages:
         xml = page.to_xml(
@@ -46,10 +33,24 @@ def export(
             basename = f"{page.entity.title_breadcrumb_path}.xml"
         else:  # pragma: no cover
             raise TypeError(f"Unsupported breadcrumb_type: {breadcrumb_type}")
-        path = structure.dir_pages / basename
+        path = dir_out / basename
         safe_write(path=path, content=xml, encoding=encoding)
+
+
+def concatenate_files_in_folder_to_one(
+    dir_in: Path,
+    path_out: Path,
+    input_encoding: str = "utf-8",
+    output_encoding: str = "utf-8",
+    overwrite: bool = True,
+):
+    if overwrite is False:
+        if path_out.exists():
+            raise FileExistsError(f"File already exists: {path_out}")
+    paths = list(dir_in.glob("**/*.*"))
+    lines = [path.read_text(encoding=input_encoding) for path in paths]
     safe_write(
-        path=structure.path_all_in_one,
+        path=path_out,
         content="\n".join(lines),
-        encoding=encoding,
+        encoding=output_encoding,
     )
