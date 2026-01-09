@@ -10,8 +10,8 @@ import dataclasses
 from functools import cached_property
 
 import atlas_doc_parser.api as atlas_doc_parser
-from sanhe_confluence_sdk.methods.page.get_pages_in_space import (
-    GetPagesInSpaceResponseResult,
+from sanhe_confluence_sdk.methods.page.get_pages import (
+    GetPagesResponseResult,
 )
 
 from .constants import TAB, ConfluencePageFieldEnum
@@ -48,7 +48,7 @@ class Page:
     # breadcrumb_path: str = REQ
     site_url: str = dataclasses.field()
     entity: Entity = dataclasses.field()
-    result: GetPagesInSpaceResponseResult = dataclasses.field()
+    result: GetPagesResponseResult = dataclasses.field()
 
     @cached_property
     def _formatted_site_url(self) -> str:

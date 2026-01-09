@@ -29,3 +29,8 @@ class DescendantTypeEnum(str, enum.Enum):
     folder = "folder"
     page = "page"
     whiteboard = "whiteboard"
+
+
+class BreadCrumbTypeEnum(str, enum.Enum):
+    id = "id"
+    title = "title"

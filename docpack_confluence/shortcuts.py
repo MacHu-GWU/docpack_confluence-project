@@ -21,6 +21,9 @@ from sanhe_confluence_sdk.methods.space.get_space import GetSpaceResponse
 from sanhe_confluence_sdk.methods.space.get_spaces import GetSpacesRequest
 from sanhe_confluence_sdk.methods.space.get_spaces import GetSpacesRequestQueryParams
 from sanhe_confluence_sdk.methods.space.get_spaces import GetSpacesResponseResult
+from sanhe_confluence_sdk.methods.page.get_pages import GetPagesRequest
+from sanhe_confluence_sdk.methods.page.get_pages import GetPagesRequestQueryParams
+from sanhe_confluence_sdk.methods.page.get_pages import GetPagesResponseResult
 from sanhe_confluence_sdk.methods.page.get_pages_in_space import GetPagesInSpaceRequest
 from sanhe_confluence_sdk.methods.page.get_pages_in_space import GetPagesInSpaceRequestPathParams
 from sanhe_confluence_sdk.methods.page.get_pages_in_space import GetPagesInSpaceRequestQueryParams
@@ -48,6 +51,8 @@ from sanhe_confluence_sdk.methods.folder.create_folder import CreateFolderReques
 from sanhe_confluence_sdk.methods.folder.create_folder import CreateFolderRequestBodyParams
 from sanhe_confluence_sdk.methods.folder.create_folder import CreateFolderResponse
 # fmt: on
+
+from .vendor.more_itertools import batched
 
 from .constants import GET_PAGE_DESCENDANTS_MAX_DEPTH
 from .type_hint import HasRawData, CacheLike
@@ -88,6 +93,31 @@ def get_space_by_key(
     response = request.sync(client)
     space = response.results[0]
     return space
+
+
+def get_pages_by_ids(
+    client: Confluence, ids: list[int], body_format: str = "atlas_doc_format"
+) -> list[GetPagesResponseResult]:
+    """
+    Fetches multiple Confluence pages by their IDs in batches.
+
+    :param client: Authenticated Confluence API client
+    :param ids: List of Confluence page IDs to fetch
+
+    :returns: List of page results
+    """
+    results = list()
+    for id_batch in batched(ids, n=250):
+        query_params = GetPagesRequestQueryParams(
+            id=id_batch,
+            body_format=body_format,
+        )
+        request = GetPagesRequest(
+            query_params=query_params,
+        )
+        response = request.sync(client)
+        results.extend(response.results)
+    return results
 
 
 def get_pages_in_space(
