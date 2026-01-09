@@ -34,17 +34,19 @@ def test():
     _ = api.T_RESPONSE_TYPE
     _ = api.execute_with_retry
     _ = api.create_pages_and_folders
-    _ = api.filter_pages
-    _ = api.select_pages
     _ = api.Entity
     _ = api.crawl_descendants
     _ = api.serialize_entities
     _ = api.deserialize_entities
     _ = api.crawl_descendants_with_cache
+    _ = api.filter_entities
+    _ = api.select_entities
+    _ = api.Page
     _ = api.export_pages_to_xml_files
     _ = api.merge_files
     _ = api.SpaceExportConfig
     _ = api.ExportSpec
+
 
 if __name__ == "__main__":
     from docpack_confluence.tests import run_cov_test

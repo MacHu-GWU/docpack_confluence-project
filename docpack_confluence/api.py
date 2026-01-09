@@ -29,13 +29,14 @@ from .shortcuts import T_REQUEST
 from .shortcuts import T_RESPONSE_TYPE
 from .shortcuts import execute_with_retry
 from .shortcuts import create_pages_and_folders
-from .shortcuts import filter_pages
-from .shortcuts import select_pages
 from .crawler import Entity
 from .crawler import crawl_descendants
 from .crawler import serialize_entities
 from .crawler import deserialize_entities
 from .crawler import crawl_descendants_with_cache
+from .crawler import filter_entities
+from .crawler import select_entities
+from .page import Page
 from .exporter import export_pages_to_xml_files
 from .exporter import merge_files
 from .pack import SpaceExportConfig

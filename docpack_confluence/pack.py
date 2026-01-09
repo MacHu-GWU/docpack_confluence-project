@@ -13,14 +13,13 @@ from pathlib import Path
 
 from sanhe_confluence_sdk.api import Confluence
 
-from .constants import ConfluencePageFieldEnum, DescendantTypeEnum, BreadCrumbTypeEnum
-from .shortcuts import (
-    get_space_by_id,
-    get_space_by_key,
-    get_pages_by_ids,
-    filter_pages,
-)
-from .crawler import crawl_descendants
+from .constants import ConfluencePageFieldEnum
+from .constants import DescendantTypeEnum
+from .constants import BreadCrumbTypeEnum
+from .shortcuts import get_space_by_id
+from .shortcuts import get_space_by_key
+from .shortcuts import get_pages_by_ids
+from .crawler import select_entities
 from .page import Page
 from .exporter import export_pages_to_xml_files, merge_files
 
@@ -39,6 +38,7 @@ class SpaceExportConfig:
     :param wanted_fields: Fields to include in XML output
     :param ignore_to_markdown_error: Skip errors during markdown conversion
     """
+
     # fmt: off
     client: Confluence = dataclasses.field()
     space_id: int | None = dataclasses.field(default=None)
@@ -79,26 +79,21 @@ class SpaceExportConfig:
         else:
             raise ValueError("Either space_id or space_key must be provided")
 
-        # Crawl page hierarchy
-        entities = crawl_descendants(
+        entities = select_entities(
             client=self.client,
             root_id=int(homepage_id),
             root_type=DescendantTypeEnum.page,
-        )
-
-        # Filter pages by include/exclude patterns
-        filtered_entities = filter_pages(
-            entities=entities,
             include=self.include,
             exclude=self.exclude,
+            verbose=False,
         )
 
         # Fetch full page content
         results = get_pages_by_ids(
             client=self.client,
-            ids=[int(entity.node.id) for entity in filtered_entities],
+            ids=[int(entity.node.id) for entity in entities],
         )
-        if len(filtered_entities) != len(results):
+        if len(entities) != len(results):
             raise ValueError("Mismatch between filtered_entities and fetched_pages")
         result_by_id = {str(result.id): result for result in results}
 
@@ -109,7 +104,7 @@ class SpaceExportConfig:
                 entity=entity,
                 result=result_by_id[str(entity.node.id)],
             )
-            for entity in filtered_entities
+            for entity in entities
         ]
 
         # Export to XML files

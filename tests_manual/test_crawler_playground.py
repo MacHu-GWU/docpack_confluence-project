@@ -52,6 +52,6 @@ def test_crawl_descendants():
         print(f"{desc.node.title = }, {desc.node.childPosition = }")
 
 
-delete_all_pages_and_folders()
-create_deep_hierarchy_pages_and_folders()
-test_crawl_descendants()
+# delete_all_pages_and_folders()
+# create_deep_hierarchy_pages_and_folders()
+# test_crawl_descendants()

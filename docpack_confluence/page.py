@@ -13,12 +13,12 @@ import dataclasses
 from functools import cached_property
 
 import atlas_doc_parser.api as atlas_doc_parser
+from sanhe_confluence_sdk.api import Confluence
 from sanhe_confluence_sdk.methods.page.get_pages import (
     GetPagesResponseResult,
 )
-
-from .constants import TAB, ConfluencePageFieldEnum
-from .crawler import Entity
+from .constants import TAB, ConfluencePageFieldEnum, DescendantTypeEnum
+from .crawler import Entity, crawl_descendants, filter_entities
 
 
 @dataclasses.dataclass
