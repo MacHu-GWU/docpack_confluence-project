@@ -90,6 +90,8 @@ Key Functions in shortcuts.py
 
 Location: :mod:`docpack_confluence.shortcuts`
 
+The shortcuts module provides low-level API wrappers for fetching data from Confluence.
+
 **get_descendants_of_page**
 
 Fetches all descendants of a page using pagination::
@@ -280,20 +282,20 @@ This is the **most critical test** - it validates that:
 
 .. code-block:: python
 
-    def test_select_pages():
+    def test_select_entities():
         """Test include/exclude pattern filtering."""
         # Test 1: No filter (all 42 pages)
-        pages = select_pages(client=client, space_id=space_id)
+        entities = select_entities(client=client, space_id=space_id)
 
         # Test 2: Include only Branch 3
-        pages = select_pages(
+        entities = select_entities(
             client=client,
             space_id=space_id,
             include=[f"{site_url}/wiki/spaces/DPPROJ1/folder/655426125/**"],
         )
 
         # Test 3: Include with exclude
-        pages = select_pages(
+        entities = select_entities(
             client=client,
             space_id=space_id,
             include=[f"{site_url}/wiki/spaces/DPPROJ1/pages/655425960/**"],
@@ -352,16 +354,16 @@ The Parent Clustering Algorithm is the core innovation. Everything else
 
 **Why Two-Phase API Design?**
 
-We provide two functions for different use cases:
+We provide two functions in :mod:`docpack_confluence.crawler` for different use cases:
 
 .. code-block:: python
 
     # Pure filtering (for cached entities)
-    def filter_pages(entities, include, exclude) -> list[Entity]:
+    def filter_entities(entities, include, exclude) -> list[Entity]:
         """Filter entities without I/O."""
 
     # Convenience wrapper (fetches + filters)
-    def select_pages(client, space_id, include, exclude) -> list[Entity]:
+    def select_entities(client, space_id, include, exclude) -> list[Entity]:
         """Fetch from API and filter."""
 
 This allows:
@@ -394,15 +396,15 @@ Quick Reference
     entities = crawl_descendants(client, homepage_id, verbose=True)
     # Returns 77 entities in 3 iterations
 
-**Filter Pages**::
+**Filter Entities**::
 
-    from docpack_confluence.shortcuts import filter_pages, select_pages
+    from docpack_confluence.crawler import filter_entities, select_entities
 
     # With pre-fetched entities
-    pages = filter_pages(entities, include=[".../**"], exclude=[".../*"])
+    entities = filter_entities(entities, include=[".../**"], exclude=[".../*"])
 
     # Fetch and filter in one call
-    pages = select_pages(client, space_id, include=[".../**"])
+    entities = select_entities(client, space_id, include=[".../**"])
 
 
 Manual Testing
@@ -437,7 +439,7 @@ Interactive test file with helper functions:
 - ``create_deep_hierarchy_pages_and_folders()``: Create test data
 - ``delete_all_pages_and_folders()``: Clean up test data
 - ``test_crawl_descendants()``: Test crawler and print entity IDs
-- ``test_select_pages()``: Test include/exclude filtering
+- ``test_select_entities()``: Test include/exclude filtering
 
 .. note::
 

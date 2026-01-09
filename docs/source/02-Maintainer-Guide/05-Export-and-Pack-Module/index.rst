@@ -118,7 +118,7 @@ Export Workflow
 The export workflow consists of these steps:
 
 1. **Crawl**: Fetch page hierarchy using :func:`~docpack_confluence.crawler.crawl_descendants`
-2. **Filter**: Apply include/exclude patterns using :func:`~docpack_confluence.shortcuts.filter_pages`
+2. **Filter**: Apply include/exclude patterns using :func:`~docpack_confluence.crawler.filter_entities`
 3. **Fetch Content**: Get full page content using :func:`~docpack_confluence.shortcuts.get_pages_by_ids`
 4. **Build Pages**: Create :class:`~docpack_confluence.page.Page` objects with entity + content
 5. **Export XML**: Write individual XML files with metadata and markdown content
