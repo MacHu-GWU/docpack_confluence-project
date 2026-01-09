@@ -13,9 +13,9 @@ sub packages and modules
     api <api>
     constants <constants>
     crawler <crawler>
-    example <example>
-    hierarchy <hierarchy>
+    exporter <exporter>
     one <one>
+    pack <pack>
     page <page>
     selector <selector>
     shortcuts <shortcuts>

@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
 
 """
-Confluence page fetching and processing utilities.
+Confluence Page Data Model
+
+Provides the Page class for representing Confluence pages with hierarchy
+metadata and serialization to XML/Markdown for AI knowledge base export.
 """
 
 import typing as T
@@ -21,37 +24,27 @@ from .crawler import Entity
 @dataclasses.dataclass
 class Page:
     """
-    A data container for Confluence pages that enriches the API response data with
-    hierarchical metadata and navigation properties.
+    Confluence page with hierarchy metadata and serialization capabilities.
 
-    This class wraps the raw page data returned by Confluence's
-    `get pages <https://developer.atlassian.com/cloud/confluence/rest/v2/api-group-page/#api-pages-get>`_ API
-    and adds additional attributes for working with page hierarchies and navigation.
+    Combines crawled entity data (hierarchy info) with fetched page content
+    (from Confluence API) to provide a complete page representation for export.
 
-    :param page_data: The raw item response from the `Confluence.get_pages` API call
-    :param site_url: Base URL of the Confluence site
-    :param id_path: Hierarchical ID-based path (e.g., "/parent_id/child_id")
-        for filtering with glob patterns
-    :param position_path: Position-based path (e.g., "/1/3/2") used for hierarchical sorting
-    :param breadcrumb_path: Human-readable title hierarchy (e.g., "|| Parent || Child || Page")
-        similar to UI breadcrumbs
+    :param site_url: Base URL of the Confluence site (e.g., "https://example.atlassian.net")
+    :param entity: Crawled entity containing hierarchy metadata (breadcrumb paths, etc.)
+    :param result: Page content from Confluence get_pages API response
 
-    The class assumes the body format is
+    The page body is expected in
     `Atlas Doc Format <https://developer.atlassian.com/cloud/jira/platform/apis/document/structure/>`_
-
-    Properties like `id`, `title`, `parent_id` provide convenient access to commonly
-    used attributes from the raw page data.
+    which is converted to Markdown for export.
     """
 
-    # id_path: str = REQ
-    # position_path: str = REQ
-    # breadcrumb_path: str = REQ
     site_url: str = dataclasses.field()
     entity: Entity = dataclasses.field()
     result: GetPagesResponseResult = dataclasses.field()
 
     @cached_property
     def _formatted_site_url(self) -> str:
+        """Site URL without trailing slash."""
         if self.site_url.endswith("/"):
             return self.site_url[:-1]
         else:
@@ -59,13 +52,22 @@ class Page:
 
     @cached_property
     def atlas_doc(self) -> dict[str, T.Any]:
+        """Parsed Atlas Doc Format content as dictionary."""
         return json.loads(self.result.body.atlas_doc_format.value)
 
     @cached_property
     def webui_url(self) -> str:
+        """Full URL to view this page in Confluence web UI."""
         return f"{self._formatted_site_url}/wiki{self.result.links.webui}"
 
     def to_markdown(self, ignore_error: bool = True) -> str:
+        """
+        Convert page content to Markdown format.
+
+        :param ignore_error: Skip unsupported content types instead of raising errors
+
+        :returns: Markdown string with page title as H1 header
+        """
         node_doc = atlas_doc_parser.NodeDoc.from_dict(
             dct=self.atlas_doc,
         )
@@ -76,18 +78,20 @@ class Page:
         ]
         lines.extend(md.splitlines())
         md = "\n".join(lines)
-        return md
+        return md.rstrip()
 
     def to_xml(
         self,
-        wanted_fields: set[ConfluencePageFieldEnum] | None = None,
+        wanted_fields: T.Optional[T.Set[ConfluencePageFieldEnum]] = None,
         to_markdown_ignore_error: bool = True,
     ) -> str:
         """
-        Serialize the file data to XML format.
+        Serialize page to XML format for AI knowledge base ingestion.
 
-        This method generates an XML representation of the file including its GitHub
-        metadata and content, suitable for document storage or AI context input.
+        :param wanted_fields: Fields to include; None means all fields
+        :param to_markdown_ignore_error: Skip errors during markdown conversion
+
+        :returns: XML string with document structure
         """
         if wanted_fields is None:
             wanted_fields = {field.value for field in ConfluencePageFieldEnum}
@@ -120,30 +124,16 @@ class Page:
 
     def to_json(
         self,
-        wanted_fields: set[ConfluencePageFieldEnum] | None = None,
+        wanted_fields: T.Optional[T.Set[ConfluencePageFieldEnum]] = None,
         to_markdown_ignore_error: bool = True,
-    ):
+    ) -> str:
+        """Serialize page to JSON format. Not yet implemented."""
         raise NotImplementedError
 
     def to_yaml(
         self,
-        wanted_fields: set[ConfluencePageFieldEnum] | None = None,
+        wanted_fields: T.Optional[T.Set[ConfluencePageFieldEnum]] = None,
         to_markdown_ignore_error: bool = True,
-    ):
+    ) -> str:
+        """Serialize page to YAML format. Not yet implemented."""
         raise NotImplementedError
-
-    # def export_to_file(
-    #     self,
-    #     dir_out: Path,
-    #     wanted_fields: list[str] | None = None,
-    # ) -> Path:
-    #     fname = self.breadcrumb_path[3:].replace("||", "~")
-    #     basename = f"{fname}.xml"
-    #     path_out = dir_out.joinpath(basename)
-    #     content = self.to_xml(wanted_fields=wanted_fields)
-    #     try:
-    #         path_out.write_text(content, encoding="utf-8")
-    #     except FileNotFoundError:
-    #         path_out.parent.mkdir(parents=True)
-    #         path_out.write_text(content, encoding="utf-8")
-    #     return path_out

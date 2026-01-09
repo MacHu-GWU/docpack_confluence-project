@@ -126,7 +126,7 @@ Parent Clustering Algorithm (crawler.py)
 
 Location: :mod:`docpack_confluence.crawler`
 
-The :func:`~docpack_confluence.crawler.crawl_space_descendants` function is the
+The :func:`~docpack_confluence.crawler.crawl_descendants` function is the
 core algorithm that fetches **complete hierarchies** regardless of depth.
 
 **Why This Algorithm?**
@@ -259,7 +259,7 @@ Location: ``tests_manual/test.py``
 
     def test_crawl_descendants():
         """Test the Parent Clustering Algorithm crawler."""
-        entities = crawl_space_descendants(
+        entities = crawl_descendants(
             client=client,
             homepage_id=homepage_id,
             verbose=True,
@@ -341,7 +341,7 @@ Development Philosophy
 
 **The Hard Part is Done**
 
-Once :func:`~docpack_confluence.crawler.crawl_space_descendants` is working:
+Once :func:`~docpack_confluence.crawler.crawl_descendants` is working:
 
 1. We have **complete hierarchy data** regardless of depth
 2. We have **lineage information** for each entity
@@ -389,9 +389,9 @@ Quick Reference
 
 **Crawl Hierarchy**::
 
-    from docpack_confluence.crawler import crawl_space_descendants
+    from docpack_confluence.crawler import crawl_descendants
 
-    entities = crawl_space_descendants(client, homepage_id, verbose=True)
+    entities = crawl_descendants(client, homepage_id, verbose=True)
     # Returns 77 entities in 3 iterations
 
 **Filter Pages**::
