@@ -403,3 +403,43 @@ Quick Reference
 
     # Fetch and filter in one call
     pages = select_pages(client, space_id, include=[".../**"])
+
+
+Manual Testing
+------------------------------------------------------------------------------
+
+The ``tests_manual/`` directory contains manual tests that require real
+Confluence API access. **These are NOT unit tests** - they are run manually
+during development and not included in CI.
+
+**test_crawler.py**
+
+Location: ``tests_manual/test_crawler.py``
+
+Comprehensive tests for the crawler functionality:
+
+- Validates all 77 nodes are fetched
+- Verifies page/folder counts (42 pages, 35 folders)
+- Checks 12-level depth handling
+- Tests entity lineage structure
+- Validates cache functionality
+
+Run manually::
+
+    .venv/bin/python tests_manual/test_crawler.py
+
+**test.py**
+
+Location: ``tests_manual/test.py``
+
+Interactive test file with helper functions:
+
+- ``create_deep_hierarchy_pages_and_folders()``: Create test data
+- ``delete_all_pages_and_folders()``: Clean up test data
+- ``test_crawl_descendants()``: Test crawler and print entity IDs
+- ``test_select_pages()``: Test include/exclude filtering
+
+.. note::
+
+    Always ensure test data exists before running crawler tests. Use
+    ``create_deep_hierarchy_pages_and_folders()`` if the test space is empty.
