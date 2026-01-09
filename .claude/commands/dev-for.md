@@ -1,6 +1,6 @@
 ---
-description: Query maintainer guide for docpack_confluence development
+description: Use the `dev` skill to handle user requests related to development tasks.
 ---
-Use the `dev` skill to answer:
+Use the `dev` skill to handle the following user requests:
 
 $ARGUMENTS
