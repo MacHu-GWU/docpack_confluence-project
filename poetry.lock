@@ -1635,38 +1635,6 @@ docs = ["Sphinx (==5.3.0)", "docfly (==2.0.1)", "furo (==2023.03.27)", "ipython 
 tests = ["autopep8", "pytest", "pytest-cov"]
 
 [[package]]
-name = "pathpick"
-version = "0.1.1"
-description = "A lightweight Python library for selecting files using gitignore-style include and exclude patterns."
-optional = false
-python-versions = "<4.0,>=3.9"
-groups = ["main"]
-files = [
-    {file = "pathpick-0.1.1-py3-none-any.whl", hash = "sha256:b1ef3437658d950da836d1aa5a672a27f0abc2f0e35c0c34e4d99f08f8c8f8fc"},
-    {file = "pathpick-0.1.1.tar.gz", hash = "sha256:ce617cb2bb8135208dc1df8c4fa82fcccdf11ec08130d9b8e92cf41dc63dfb6b"},
-]
-
-[package.dependencies]
-pathspec = ">=0.12.1,<1.0.0"
-
-[package.extras]
-dev = ["build (>=1.2.1,<2.0.0)", "rich (>=13.8.1,<14.0.0)", "twine (>=6.0.0,<7.0.0)", "wheel (>=0.45.0,<1.0.0)"]
-doc = ["Sphinx (>=7.4.7,<8.0.0)", "docfly (==2.0.3)", "furo (==2024.8.6)", "ipython (>=8.18.1,<8.19.0)", "nbsphinx (>=0.8.12,<1.0.0)", "pygments (>=2.18.0,<3.0.0)", "rstobj (==1.2.1)", "sphinx-copybutton (>=0.5.2,<1.0.0)", "sphinx-design (>=0.6.1,<1.0.0)", "sphinx-jinja (>=2.0.2,<3.0.0)"]
-test = ["pytest (>=8.2.2,<9.0.0)", "pytest-cov (>=6.0.0,<7.0.0)"]
-
-[[package]]
-name = "pathspec"
-version = "0.12.1"
-description = "Utility library for gitignore style pattern matching of file paths."
-optional = false
-python-versions = ">=3.8"
-groups = ["main"]
-files = [
-    {file = "pathspec-0.12.1-py3-none-any.whl", hash = "sha256:a0d503e138a4c123b27490a4f7beda6a01c6f288df0e4a8b79c7eb0dc7b4cc08"},
-    {file = "pathspec-0.12.1.tar.gz", hash = "sha256:a482d51503a1ab33b1c67a6c3813a26953dbdc71c31dacaef9a838c4e29f5712"},
-]
-
-[[package]]
 name = "pexpect"
 version = "4.9.0"
 description = "Pexpect allows easy control of interactive console applications."
@@ -3001,4 +2969,4 @@ test = ["home-secret-toml", "pytest", "pytest-cov"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4.0"
-content-hash = "74eb98c939a7483bd5169524fe532bac1123be5e65fd6706355e30ae95fa7e55"
+content-hash = "eecf3f186d09b12fe1c0db1681ca3b1322f50aa5f1749184ef32a8c031ffb4c0"

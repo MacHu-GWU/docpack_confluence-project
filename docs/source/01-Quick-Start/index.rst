@@ -99,9 +99,10 @@ Each XML file contains:
 
 The ``all_in_one_knowledge_base.txt`` file concatenates all exported pages into a single document. This is especially useful when you want to:
 
-- Drag and drop a single file to an AI assistant
-- Upload to AI platforms that have file count limits
-- Quickly share the entire knowledge base
+- **Drag and drop** directly into AI chat interfaces for instant context
+- **Upload to AI knowledge bases**: ChatGPT Project Knowledge Base, Claude Project Files, Gemini Gems, etc.
+- **Ingest into vector stores**: Feed the exported files into your own RAG pipeline or vector database
+- **Share easily**: Distribute the entire knowledge base as a single file
 
 
 Selective Export with Include/Exclude Patterns
@@ -332,10 +333,14 @@ ExportSpec Parameters
 Common Use Cases
 ------------------------------------------------------------------------------
 
-Use Case 1: Export for Claude Projects
+Use Case 1: Export for AI Knowledge Bases
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Export your documentation and upload to `Claude Projects <https://claude.ai/projects>`_ for context-aware AI assistance:
+Export your documentation for AI-powered assistance. You have several options:
+
+1. **Drag and drop**: Drop ``all_in_one_knowledge_base.txt`` directly into any AI chat interface
+2. **AI platform knowledge bases**: Upload to ChatGPT Project Knowledge Base, Claude Project Files, Gemini Gems, or similar
+3. **Custom vector stores**: Ingest the exported files into your own RAG pipeline or vector database
 
 .. code-block:: python
 
@@ -346,12 +351,12 @@ Export your documentation and upload to `Claude Projects <https://claude.ai/proj
                 space_key="DOCS",
             ),
         ],
-        dir_out=Path("./claude_knowledge"),
+        dir_out=Path("./ai_knowledge"),
     )
     spec.export()
 
-    # Upload all_in_one_knowledge_base.txt to Claude Projects
-    print(f"Upload this file to Claude: {spec.path_merged_output}")
+    # The all-in-one file is ready for upload
+    print(f"Knowledge base file: {spec.path_merged_output}")
 
 Use Case 2: Export Specific Documentation Sections
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
