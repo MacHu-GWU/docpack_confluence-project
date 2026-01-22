@@ -107,21 +107,25 @@ def get_pages_by_ids(
     :param ids: List of Confluence page IDs to fetch
     :param body_format: Format of the page body content
 
-    :returns: List of page results
+    :returns: List of page results strictly in the order of the provided IDs
     """
-    results = list()
-    batch_size = 250
-    for id_batch in batched(ids, n=batch_size):
+    id_to_result_mapping = dict()
+    for id_batch in batched(ids, n=250):
         query_params = GetPagesRequestQueryParams(
             id=id_batch,
             body_format=body_format,
-            limit=batch_size,
+            limit=250,
         )
         request = GetPagesRequest(
             query_params=query_params,
         )
         response = request.sync(client)
-        results.extend(response.results)
+        for result in response.results:
+            id_to_result_mapping[int(result.id)] = result
+    results = [
+        id_to_result_mapping[id]
+        for id in ids
+    ]
     return results
 
 
