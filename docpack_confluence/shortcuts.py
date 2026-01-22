@@ -110,10 +110,12 @@ def get_pages_by_ids(
     :returns: List of page results
     """
     results = list()
-    for id_batch in batched(ids, n=250):
+    batch_size = 250
+    for id_batch in batched(ids, n=batch_size):
         query_params = GetPagesRequestQueryParams(
             id=id_batch,
             body_format=body_format,
+            limit=batch_size,
         )
         request = GetPagesRequest(
             query_params=query_params,
